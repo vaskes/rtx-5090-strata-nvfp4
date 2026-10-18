@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Niko1221 and the Strata contributors
+Copyright (c) 2026 vaskes / Kuduza Ai Lab
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,17 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+This repository is a deployment wrapper around:
+
+  - sergqwer/strata-nvfp4 (the Strata NVFP4 fork) — see its license in
+    third_party/llama.cpp/ (or upstream)
+
+  - ggerganov/llama.cpp at commit 3cf0325 (in third_party/llama.cpp/) —
+    MIT License. See third_party/llama.cpp/LICENSE.
+
+  - The Qwen3.8-Flash-Next NVFP4 model (Maximilian228/...) — Qwen Community
+    License 1.0. Not redistributed in this repo; downloaded on first run via
+    setup.py.
