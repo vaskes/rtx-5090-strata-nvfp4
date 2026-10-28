@@ -24,7 +24,14 @@ StartLimitIntervalSec=300
 StartLimitBurst=3
 
 [Service]
-Type=oneshot
+# Type=exec + RemainAfterExit=yes: run.sh returns as soon as the container is started,
+# and systemd keeps the unit "active" afterwards.
+#
+# NOT Type=oneshot: with it systemd treats the unit as finished and, because
+# RemainAfterExit keeps it active, a later `systemctl start` does NOTHING ("Already
+# running" - the container stays down) and `systemctl stop` does not run ExecStop.
+# With Type=exec both commands do what they say, every time.
+Type=exec
 RemainAfterExit=yes
 
 # Use a wrapper script for the full docker run command. This keeps the
