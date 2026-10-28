@@ -45,6 +45,12 @@ systemctl restart strata-nvfp4    # перезапустить
 systemctl enable strata-nvfp4     # и systemctl disable, чтобы откатить
 ```
 
+> Юнит сделан на `Type=exec` + `RemainAfterExit=yes`, а **не** на `Type=oneshot`:
+> с oneshot systemd считает юнит «завершённым навсегда» и больше не выполняет
+> ни ExecStart, ни ExecStop - `systemctl start` молча ничего не делает, а
+> `systemctl stop` оставляет контейнер работать. С `Type=exec` все четыре команды
+> (`start`, `stop`, `restart`, повторный `start`) делают то, что сказано.
+
 ### Прямой запуск мимо systemd (для отладки)
 
 ```sh
@@ -129,8 +135,9 @@ curl -s -H "Authorization: Bearer $API_KEY" localhost:8080/v1/chat/completions \
   | python3 -m json.tool
 ```
 
-Ожидаемые числа на 5090: **~100 tok/s decode**, prefill ~6000 tok/s,
-принятие MTP-драфта 72–92 %.
+Измерено на этой сборке: **130.9-134.6 tok/s decode**, prefill ~6000 tok/s,
+принятие MTP-драфта 84.6-97.2 %, cache hit экспертов 80-85 %,
+5378 экспертов в 22.7 GiB VRAM. (Старая ревизия форка давала 95-101 tok/s.)
 
 В логах должно быть:
 
