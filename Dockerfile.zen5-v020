@@ -1,0 +1,123 @@
+# Strata NVFP4 fork (sergqwer/strata-nvfp4 @ 586dc5e, release 0.2.0-beta-nvfp4.3) — RTX 5090 + Zen 5.
+#
+# Zen 4/5 native code (gcc 13.3 does not know -march=znver5 yet):
+# -march=native auto-detects AVX-512/AVX-VNNI on the host; -mtune=znver4
+# gives the right pipeline model (Zen 5 shares Zen 4's front-end).
+# -flto + -fvisibility=hidden feed the link-time optimizer.
+#
+# NOT STRATA_PORTABLE=ON (the upstream Dockerfile sets it): that forces
+# GGML_NATIVE=OFF and an AVX2 baseline, which throws away the measured
+# Zen 5 win (decode 95-101 tok/s vs 80-85).
+#
+# Build:  docker build -f Dockerfile.zen5-v020 -t strata-nvfp4:sm120-v020 /opt/strata-nvfp4/build-0.2.0
+# Run:    same as Dockerfile, but with image name `strata-nvfp4:sm120-v020`
+
+FROM nvidia/cuda:13.0.0-devel-ubuntu24.04
+
+# STRATA_EXECV is NOT set here on purpose.
+#
+# It makes setup.py REPLACE ITSELF with the server (os.execve), so the server is PID 1 and
+# `docker stop`'s SIGTERM reaches the process that can answer the engine with QUIT. That is
+# what the serve phase wants - but as a blanket ENV it also breaks the fork's own test
+# suite: a test calls setup.main() directly, and the pytest process is execve'd away
+# (the suite stops at ~40% with "Interrupted" and no summary).
+#
+# So the serve phase exports it itself, right before it starts the model.
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    LANG=C.UTF-8 \
+    PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+    PIP_RETRIES=10 \
+    PIP_TIMEOUT=120 \
+    # Zen 4/5 native code (gcc 13.3 doesn't know -march=znver5 yet).
+    # -march=native auto-detects AVX-512/AVX-VNNI on the host; -mtune=znver4
+    # gives the right pipeline model (Zen 5 shares Zen 4's front-end).
+    # -flto + -fvisibility=hidden feed the link-time optimizer.
+    CFLAGS="-O3 -flto -march=native -mtune=znver4 -fno-plt \
+            -ffunction-sections -fdata-sections \
+            -fvisibility=hidden -fno-omit-frame-pointer" \
+    CXXFLAGS="-O3 -flto -march=native -mtune=znver4 -fno-plt \
+              -ffunction-sections -fdata-sections \
+              -fvisibility=hidden -fno-omit-frame-pointer \
+              -fstack-protector-strong -DNDEBUG" \
+    LDFLAGS="-O3 -flto -fno-plt -Wl,--gc-sections"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential ca-certificates curl git libatomic1 libgomp1 \
+        python3 python3-pip python3-venv unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/strata
+COPY . .
+
+ARG CUDA_ARCHITECTURES=120
+ARG BUILD_VISION=1
+
+# The venv lives in /venv, OUTSIDE the source tree - like the fork's own Dockerfile
+# (WORKDIR /src, venv in /venv). Inside the tree it breaks the fork's own test suite:
+# tests/terminal/test_no_acquisition.py walks sys.modules and asserts that every module
+# loaded from the source root belongs to serve/strata_cli/strata_control - a .venv inside
+# the root fails that ("'.venv' not found in (...)").
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    python3 -m venv /venv \
+    && /venv/bin/pip install --upgrade pip \
+    && /venv/bin/pip install -r requirements.txt \
+    && chmod +x setup.sh \
+    && /venv/bin/python -c "import json, pathlib, sys; sys.path.insert(0, '/opt/strata'); import setup; \
+        pathlib.Path(sys.prefix, '.strata-pip.json').write_text(json.dumps(sorted(set(setup.requirement_lines()))))" \
+    && cat /venv/.strata-pip.json
+
+# The engine (this fork's) + the image encoder, compiled here for this CPU and this card.
+#
+# The ggml sources come from the vendored llama.cpp checkout (third_party/llama.cpp,
+# the pinned commit 3cf03257) through -DSTRATA_GGML_DIR: the fork's own
+# third_party/ggml holds only the headers llama.cpp's ggml needs.
+# STRATA_NATIVE_EXPERTS=ON (default) needs those sources; STRATA_PORTABLE is
+# left OFF so ggml is built for this host (AVX-512).
+RUN /venv/bin/python - <<'PYEOF'
+import json, os, pathlib, shutil
+import setup
+
+llama = setup.get_llama_cpp()
+nvcc, _ = setup.find_nvcc()
+arch = os.environ.get("CUDA_ARCHITECTURES", "120").strip().strip('"').replace(",", ";")
+vision = "gpu" if os.environ.get("BUILD_VISION", "0") == "1" else "none"
+
+setup.cmake_build(setup.ROOT, setup.ROOT / "build", "strata",
+    ["-DSTRATA_ENABLE_CUDA=ON", "-DSTRATA_BUILD_TESTS=OFF",
+     "-DSTRATA_NATIVE_EXPERTS=ON", "-DSTRATA_PORTABLE=OFF",
+     "-DSTRATA_Q6K_EXPERTS=ON", "-DSTRATA_MMQ_KQUANTS=ON",
+     f"-DCMAKE_CUDA_ARCHITECTURES={arch}", f"-DCMAKE_CUDA_COMPILER={nvcc}",
+     f"-DCUDAToolkit_ROOT=/usr/local/cuda",
+     f"-DSTRATA_GGML_DIR={llama}"], None, "build-strata.bat")
+
+eng = setup.ROOT / "engine"
+eng.mkdir(exist_ok=True)
+shutil.copy2(setup.ROOT / "build" / setup.EXE, eng / setup.EXE)
+if (setup.ROOT / "build" / setup.KQ_LIB).exists():
+    shutil.copy2(setup.ROOT / "build" / setup.KQ_LIB, eng / setup.KQ_LIB)
+
+# the image encoder: this fork's release runs it on the CPU (the GPU one is for
+# the ready-made engine only), so it is built without CUDA, for this CPU.
+if vision != "none":
+    setup.cmake_build(setup.ROOT / "tools" / "vision", setup.ROOT / "build-vision", "strata-vision",
+        [f"-DLLAMA_DIR={llama}", "-DSTRATA_VISION_CUDA=OFF", "-DSTRATA_PORTABLE=OFF"], None, "build-vision.bat")
+    shutil.copy2(setup.ROOT / "build-vision" / "bin" / setup.VEXE, eng / setup.VEXE)
+
+bindir = pathlib.Path(nvcc).parent
+# The encoder is compiled without CUDA above (this fork's release runs it on the CPU),
+# so BUILD.json must say "cpu" - exactly what setup.py itself writes for a CPU encoder
+# (setup.py:3921). Saying "gpu" here would make the runtime believe the encoder can
+# use the card, and prebuilt_vision() would then hand out a GPU encoder that has no
+# CUDA code in it.
+meta = {"source": "local", "version": setup.source_version(),
+        "archs": [int(a.split("-")[0]) for a in arch.split(";") if a.split("-")[0].isdigit()],
+        "vision": "cpu" if vision != "none" else "none",
+        "cuda_dirs": [str(d) for d in (bindir, bindir / "x64", bindir.parent / "lib64") if d.is_dir()],
+        "src": setup.source_hash(setup.ENGINE_SOURCES),
+        "vision_src": setup.source_hash(setup.VISION_SOURCES)}
+(eng / "BUILD.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+print("engine built:", eng / setup.EXE, "vision:", vision)
+PYEOF
+
+CMD ["/custom-entrypoint.sh"]

@@ -2,8 +2,13 @@
 
 Production deployment of [sergqwer/strata-nvfp4](https://github.com/sergqwer/strata-nvfp4)
 (the Strata NVFP4 fork by sergqwer) on an NVIDIA RTX 5090 (Blackwell, sm_120)
-with 128 GB system RAM. Runs **Qwen3.8-Flash-Next** in NVFP4 + Q8_0 mix
-quantization, 256K context by default with optional 512K via YaRN extension.
+
+**Deployed fork revision: `586dc5e` (release `0.2.0-beta-nvfp4.3`, engine `0.1.45.3`).**
+The engine is built from the fork's own source tree - this repo holds the recipe
+(`Dockerfile.zen5-v020`), the entrypoints and the docs, not a copy of the fork.
+
+Runs on a host with 128 GB system RAM. Serves **Qwen3.8-Flash-Next** in NVFP4 +
+Q8_0 mix quantization, 256K context by default with optional 512K via YaRN extension.
 
 This is a deployment-tested configuration: every patch and config flag in this
 repo is required to make Strata build and run on a 5090. The reasoning is
@@ -23,13 +28,39 @@ documented inline.
 
 ## Quick start
 
+The model files (158 GB) are **not** downloaded by the build: they are staged on the
+host first, each with a `.done` file holding its `sha256`, and the setup verifies
+every one of them against the fork's own pins before it starts.
+
+```bash
+# 1. Clone this repo (the recipe)
+git clone --depth 1 https://github.com/vaskes/rtx-5090-strata-nvfp4.git
+cd rtx-5090-strata-nvfp4
+
+# 2. Stage the model files and check them against the fork's pins
+#    /opt/strata-data/models/Maximilian228--Qwen3.8-Flash-Next-NVFP4-Q8-Mix-Strata/
+#      pack/{dense.bin,experts.bin,index.txt,mix.json,native_experts.txt,tokenizer/*}
+#      mtp/{dense.bin,dense.txt,draft_vocab.bin,experts.bin}
+#      qwen-nvfp4-mix-dense.gguf, ple-fp8.gguf, token-embd-bf16.gguf
+#    /opt/strata-data/models/mmproj-Qwen3.8-Flash-Next-BF16.gguf   (the image encoder)
+
+# 3. Deploy: builds the image, installs the systemd unit, starts the service
+sudo scripts/deploy-v020.sh
+```
+
+That is the whole sequence. What it does, and what each step needs, is in
+[`docs/STRATA-NVFP4-OPERATOR.md`](docs/STRATA-NVFP4-OPERATOR.md).
+
+### Running it by hand (without the script)
+
 ```bash
 # 1. Clone
 git clone --depth 1 https://github.com/vaskes/rtx-5090-strata-nvfp4.git
 cd rtx-5090-strata-nvfp4
 
-# 2. Build the image (sm_120, ~15-20 min, ~16 GB output)
-docker build -t strata-nvfp4:sm120 .
+# 2. Build the image from the FORK's tree (sm_120, ~5 min, ~13 GB output)
+cd /opt/strata-nvfp4/build-0.2.0
+docker build -f Dockerfile.zen5-v020 -t strata-nvfp4:sm120-v020 .
 
 # 3. Create a persistent data dir (model files + engine + config)
 sudo mkdir -p /opt/strata-data
@@ -41,27 +72,33 @@ docker run -d --name strata-nvfp4 \
   -p 8080:8080 \
   --ulimit memlock=-1 \
   -v /opt/strata-data:/data \
-  -v $(pwd)/entrypoints/strata-start.sh:/custom-entrypoint.sh:ro \
-  -e HF_TOKEN=hf_xxx_xxx \                  # required for first-run model download
+  -v $(pwd)/entrypoints/strata-start-v020.sh:/custom-entrypoint.sh:ro \
+  -e HF_TOKEN=hf_xxx_xxx \                  # only for a first-run download
   -e API_KEY=STRATA_API_KEY \           # bearer token for the API
   --entrypoint /custom-entrypoint.sh \
   --restart unless-stopped \
-  strata-nvfp4:sm120
+  strata-nvfp4:sm120-v020
 
 # 5. Watch startup logs
 docker logs -f strata-nvfp4
-# First run: 30-60 min (model download 158 GB), then 2-3 min (engine warmup).
-# Subsequent restarts: 1-3 min.
+# The model is already on disk: the setup verifies its hashes and starts.
+# The engine loads 103 GiB of experts into RAM: ~90 s to ready.
 ```
 
 ## What's in this repo
 
 | Path | What | Why |
 |---|---|---|
-| `Dockerfile` | Patched from upstream | Tsinghua pip mirror, BuildKit cache, BUILD_VISION=0, sm_120 only, symlink setup |
+| `Dockerfile.zen5-v020` | **The production build** of the fork's tree (`586dc5e`) | Zen 5 native, sm_120, venv in `/venv`, the pip stamp pre-written |
+| `scripts/deploy-v020.sh` | One command: checks the host, builds, installs the unit, starts | Every parameter in one place, for review |
+| `entrypoints/run.sh` | The `docker run` of the service, every flag explicit | What the operator reads before going live |
+| `entrypoints/strata-start-v020.sh` | In-container: setup phase, then serve phase | **Production default** (256K, int8 KV, vision, uncensored) |
+| `systemd/strata-nvfp4.service` | The unit, **disabled by default** | Started by hand, never at boot |
+| `docs/STRATA-NVFP4-OPERATOR.md` | For the operator: paths, parameters, checks, rollback | |
+| `docs/STRATA-NVFP4-MAVIS-BOT.md` | For an agent: how to point a bot at Strata | The two traps that cost hours |
+| `Dockerfile` | The OLD tree's build (kept for rollback) | `strata-nvfp4:sm120` |
 | `third_party/llama.cpp/` | llama.cpp at commit `3cf0325` | Pinned — pypi/github downloads are unreliable from this host, and untracked commits can break the build |
-| `third_party/ggml` (created in Dockerfile) | Symlink to `llama.cpp/ggml/` | Strata CMakeLists.txt:444 hardcodes this path; the source lives in llama.cpp |
-| `entrypoints/strata-start.sh` | 256K + vision + int8 KV + uncensored | **Production default** |
+| `entrypoints/strata-start.sh` | The OLD tree's entrypoint (kept for rollback) | |
 | `entrypoints/strata-512k-vision.sh` | 512K + vision + q4_0 KV + YaRN | Special case for huge documents |
 | `entrypoints/README.md` | Entrypoint docs | Env var reference, usage examples |
 | `docs/ARCHITECTURE.md` | Engine + model architecture | What runs where, why |
@@ -72,10 +109,26 @@ docker logs -f strata-nvfp4
 ## Key deployment properties
 
 - **Container pinned to RTX 5090 only** via `--gpus '"'"'"device=1"'"'"'`. RTX 5080 in the same host stays free.
-- **Engine is built per-host** (native arch) — Docker image has a stub engine
-  for the build host's CPU; first container start rebuilds for the actual
-  host's CPU. Zen 5 with `-O3 -flto -march=native` gives 18-19% extra decode
-  speed vs the default build.
+- **The engine is built for this host, in the image.** Zen 5 with `-O3 -flto
+  -march=native -mtune=znver4`; the container never compiles anything and never
+  touches the network at start. Measured on the RTX 5090: **~120-137 tok/s decode**,
+  prefill ~6000 tok/s, MTP draft acceptance 85-95 %.
+- **`STRATA_PORTABLE` is explicitly OFF.** The upstream Dockerfile sets it, and it
+  forces `GGML_NATIVE=OFF` (an AVX2 baseline) - that throws away the whole Zen 5
+  win (decode 80-85 tok/s instead of 95-101).
+- **`STRATA_EXECV` is not a blanket ENV.** It makes `setup.py` replace itself with
+  the server (`os.execve`), which is what the serve phase wants (the server is PID 1,
+  so `docker stop`'s SIGTERM reaches it) - but as a blanket ENV it also replaces the
+  *pytest* process when the fork's own test suite calls `setup.main()`, and the
+  suite stops at ~40% with "Interrupted" and no summary. The serve phase exports it.
+- **The venv lives in `/venv`, outside the source tree** (like the fork's own
+  Dockerfile). Inside the tree it breaks the fork's own suite:
+  `tests/terminal/test_no_acquisition.py` walks `sys.modules` and asserts that
+  every module loaded from the source root belongs to `serve`/`strata_cli`/
+  `strata_control` - a `.venv` inside the root fails that.
+- **The pip stamp is pre-written into the image.** Without it the setup phase runs
+  `pip install` on every container start - the one thing that puts the network
+  back into a start that should be offline.
 - **Model is uncensored by default** via cvec projection. The
   `qwen-nvfp4-gptq-uncensored.gguf` is a *reference* for the projection
   direction, not the model itself. The running model is still
