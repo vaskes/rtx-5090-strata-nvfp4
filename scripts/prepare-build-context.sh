@@ -13,18 +13,28 @@
 # built from (diff -r reports nothing).
 #
 # Usage:  prepare-build-context.sh [BUILD_DIR]
+#
+# The paths can be overridden with the environment:
+#   SRC_DIR   the fork's checkout        (default /opt/strata-nvfp4/src-0.2.0)
+#   BUILD_DIR the build context to write  (default /opt/strata-nvfp4/build-0.2.0)
+#   REPO_DIR  this repository             (default: the directory this script lives in)
 
 set -e
 
-SRC_DIR="/opt/strata-nvfp4/src-0.2.0"           # the fork's pinned checkout (586dc5e)
-BUILD_DIR="${1:-/opt/strata-nvfp4/build-0.2.0}" # the build context
-REPO_DIR="/opt/rtx-5090-strata-nvfp4-fresh"      # this repository (Dockerfile, entrypoints)
-LLAMA_DIR="$REPO_DIR/third_party/llama.cpp"     # the pinned llama.cpp (3cf03257)
+# this repository = the parent of the directory this script is in
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO_DIR="${REPO_DIR:-$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)}"
+
+SRC_DIR="${SRC_DIR:-/opt/strata-nvfp4/src-0.2.0}"           # the fork's pinned checkout (586dc5e)
+BUILD_DIR="${1:-${BUILD_DIR:-/opt/strata-nvfp4/build-0.2.0}}"  # the build context
+LLAMA_DIR="${LLAMA_DIR:-$REPO_DIR/third_party/llama.cpp}"   # the pinned llama.cpp (3cf03257)
 
 say() { echo "=== $* ==="; }
 
 [ -d "$SRC_DIR" ]   || { echo "ERROR: $SRC_DIR not found" >&2; exit 1; }
-[ -d "$LLAMA_DIR" ] || { echo "ERROR: $LLAMA_DIR not found" >&2; exit 1; }
+[ -d "$LLAMA_DIR" ] || { echo "ERROR: $LLAMA_DIR not found" >&2
+                          echo "       init the submodule: git submodule update --init --recursive" >&2
+                          exit 1; }
 
 say "1. the fork's tree -> the build context"
 mkdir -p "$BUILD_DIR"

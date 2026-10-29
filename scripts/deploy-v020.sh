@@ -27,10 +27,14 @@ MODEL_DIR_NAME="Maximilian228--Qwen3.8-Flash-Next-NVFP4-Q8-Mix-Strata"
 LLAMA_COMMIT="3cf03257f219afbe7334045ff7c6a06ac68c627d"   # the pinned submodule of this repo
 
 # --- where things live on the host ------------------------------------------
-SRC_DIR="/opt/strata-nvfp4/src-0.2.0"        # the fork's checkout (586dc5e)
-BUILD_DIR="/opt/strata-nvfp4/build-0.2.0"    # the build context (source + vendored llama.cpp)
-DATA_DIR="/opt/strata-data"                 # the model files
-REPO_DIR="/opt/rtx-5090-strata-nvfp4-fresh"  # this repository (Dockerfile, entrypoints, docs)
+# this repository = the parent of the directory this script is in, so the script
+# works from any clone and does not depend on a hardcoded path
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+
+SRC_DIR="${SRC_DIR:-/opt/strata-nvfp4/src-0.2.0}"        # the fork's checkout (586dc5e)
+BUILD_DIR="${BUILD_DIR:-/opt/strata-nvfp4/build-0.2.0}"  # the build context (source + vendored llama.cpp)
+DATA_DIR="${DATA_DIR:-/opt/strata-data}"                 # the model files
 IMAGE="strata-nvfp4:sm120-v020"
 SERVICE_DIR="/opt/strata-nvfp4.service.d"
 UNIT="/etc/systemd/system/strata-nvfp4.service"
