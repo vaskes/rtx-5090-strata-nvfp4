@@ -26,13 +26,14 @@ HOST_PORT=8081
 
 # --- the model ---------------------------------------------------------------
 # FAMILY=qwen-nvfp4-mix  the NVFP4 + Q8_0 mix (the fork's own family)
-# CONTEXT=262144        256K tokens
-# KV=int8                8-bit K/V cache
+# CONTEXT=524288        512K tokens (measured live: needle found at 521K tokens)
+# KV=int8                8-bit K/V cache (dynamic RoPE is allowed with int8;
+#                        4-bit K/V would force yarn instead)
 # VISION=yes             images on (the encoder runs on the CPU, the VRAM stays with the experts)
 # UNCENSORED=on          this fork's refusal-direction projection
 # LOW_RAM=off            all 103 GiB of experts live in RAM
 FAMILY="qwen-nvfp4-mix"
-CONTEXT="262144"
+CONTEXT="524288"
 KV="int8"
 VISION="yes"
 UNCENSORED="on"

@@ -138,7 +138,7 @@ docker logs -f strata-nvfp4
 | `--ulimit memlock=-1` | без лимита | движок `mlock`ает свои выделения |
 | `-v /opt/strata-data:/data` | модель | 158 ГБ файлов модели, переиспользуются, не копируются |
 | `-e FAMILY=qwen-nvfp4-mix` | семейство | NVFP4 + Q8_0 микс |
-| `-e CONTEXT=262144` | 256K | рабочий контекст |
+| `-e CONTEXT=524288` | 512K | рабочий контекст; **int8 K/V тянет 512K** — см. §3a |
 | `-e KV=int8` | 8-бит K/V | точность/память баланс |
 | `-e VISION=yes` | картинки | энкодер на CPU, VRAM остаётся экспертам |
 | `-e UNCENSORED=on` | цензура | проекция отказа, грузится всегда, по умолчанию **включена** |
@@ -157,7 +157,7 @@ docker logs -f strata-nvfp4
 модели, две фазы:
 
 ```
-фаза 1 (setup): setup.py --setup --no-start --family qwen-nvfp4-mix --context 262144 \
+фаза 1 (setup): setup.py --setup --no-start --family qwen-nvfp4-mix --context 524288 \
                  --kv int8 --vision yes --uncensored on --low-ram off \
                  --vram-reserve-mib 768 --data-dir /data --host 0.0.0.0 \
                  --api-key ... --port 8080 --yes
@@ -170,6 +170,98 @@ docker logs -f strata-nvfp4
 > `strata-qwen-mix-nvfp4.json`, вторая его запускает.
 
 ---
+
+## 3a. Контекст 512K: int8 тянет, а q4_0 — нет
+
+**Коротко:** контекст расширен до 524288 токенов **с тем же `-e KV=int8`**.
+Квант KV не пришлось менять. Проверено живьём: игла найдена на 521K токенов.
+
+### Почему int8, а не q4_0
+
+Форк сам выбирает метод RoPE для контекста за пределами обученных 262144:
+
+- `--kv int8` (или fp16) → **dynamic**: пока диалог влезает в 262144, углы RoPE
+  остаются штатными, бит-в-бит; дальше включается yarn с фактором
+  `positions / 262144` (округление вверх до 0.125, потолок `--rope-scale 2`).
+  Кэш при этом **переворачивается на месте** — см. лог ниже.
+- `--kv q4_0` / `k8v4` → **yarn** принудительно: движок dynamic на 4-битном
+  K/V не умеет (`rope_dynamic_blocker()` в `setup.py` → «needs 8-bit or fp16 K/V»).
+
+То есть 4-битный K/V — это не «экономия памяти», а **смена метода RoPE** и
+потеря битовой точности углов на диалогах короче 262144. Для 512K он не нужен.
+
+Блокеров dynamic на этой машине нет: один GPU, один диалог, движок 0.1.45.3
+(нужен ≥ 0.1.44.1), K/V 8-бит. Что setup.py и записал в конфиг:
+
+```
+--max-context 524288 --kv int8 --rope-scaling dynamic --rope-scale 2
+```
+
+### Сколько это стоит по VRAM
+
+K/V в этом форке **эластичный**: в VRAM сидят только те ячейки, до которых
+дошёл запрос, а остальное место отдаётся expert cache. Из лога движка:
+
+```
+strata generate: elastic K/V: 16384 of 524288 cells in VRAM (0.25 of 6.70 GiB);
+  the expert cache (5267 slots) gives the K/V room below slot 1937 as the context grows
+```
+
+⇒ int8 = **13.7 КБ на токен** (12 QSA-слоёв + draft-слой): 256K = 3.35 GiB,
+**512K = 6.70 GiB** в VRAM, если запрос дойдёт до конца. Пока запрос короткий,
+в VRAM те же 16384 ячейки — как и при 256K.
+
+Проверено на живом стенде (всё в логе движка):
+
+| prompt tokens | K/V в VRAM | слоты expert cache | decode |
+|---|---|---|---|
+| 358 940 | 4.62 GiB (360 448 ячеек) | 4222 из 5267 | 84.0 ток/с |
+| 502 940 | 6.50 GiB (507 904 ячейки) | 3764 из 5267 | 84.0 ток/с |
+| 520 940 | 6.70 GiB (524 288 ячеек — полный контекст) | 3715 из 5267 | 84.9 ток/с |
+
+Цена: **эксперты вытесняются из VRAM** (5267 → 3715 слотов, минус ~29 %),
+и часть экспертов читается с PCIe вместо кэша. На коротких диалогах этого
+не видно: hit rate возвращается к 76–80 %.
+
+### Проверка, что расширение реально работает
+
+Игла «за» границей 262144 — иначе тест ничего не доказывает. Проба
+`scripts/needle-512k.py` прячет `secret_code_word = PurpleEagle42` в глубине
+документа и спрашивает его:
+
+```sh
+export STRATA_API_KEY="$(grep -m1 ^API_KEY= /opt/strata-nvfp4.service.d/env | cut -d= -f2-)"
+python3 scripts/needle-512k.py /tmp/needle.json 7250 6900 8000
+curl -sS -X POST http://127.0.0.1:8081/v1/chat/completions \
+  -H "Authorization: Bearer ${STRATA_API_KEY}" -H "Content-Type: application/json" \
+  --data @/tmp/needle.json
+```
+
+Результат на стенде (llmhost1, RTX 5090, int8):
+
+- **358 940 токенов** → `PurpleEagle42` ✅ (игла на ~281K, за границей 262144)
+- **502 940 токенов** → `PurpleEagle42` ✅ (игла на ~431K)
+- **520 940 токенов** → `PurpleEagle42` ✅ (K/V ровно 524 288 ячеек, полный контекст)
+- **528 140 токенов** → отказ сервера, а не обрезка:
+  `request exceeds the context window: prompt (528140 tokens) leaves no room to answer in the context (524288); requests are never truncated`
+
+В логе видно, что dynamic RoPE **переворачивает кэш на месте**, когда
+фактор меняется:
+
+```
+strata serve: rope dynamic: factor 1.375 -> 2 (request): 294912 cells re-rotated in 10.1 ms
+```
+
+### Откат
+
+Вернуть 256K — одна строка в `/opt/strata-nvfp4.service.d/run.sh`:
+`CONTEXT="262144"`, затем `systemctl restart strata-nvfp4`. Движок сам вернёт
+RoPE в штатный режим (уголы перестают переворачиваться).
+
+> `max_tokens` в пробе должен быть заметно больше бюджета размышлений
+> движка: при `max_tokens=100` ответ приходит пустым (`finish_reason: length`),
+> потому что весь бюджет съедает рассуждение, а сам ответ — внутри
+> `reasoning_content`. Рабочее значение — 8000.
 
 ## 4. Что модель качает, а что нет
 
@@ -209,7 +301,7 @@ curl -s -H "Authorization: Bearer $API_KEY" localhost:8081/v1/chat/completions \
 Ожидаемый ответ `/health`:
 
 ```json
-{"status": "ok", "max_context": 262144, "model": "qwen3.8-flash-next-mix-nvfp4",
+{"status": "ok", "max_context": 524288, "model": "qwen3.8-flash-next-mix-nvfp4",
  "images": true, "api_key": true, "loaded": true, "service": "strata"}
 ```
 
@@ -244,7 +336,7 @@ entrypoint `strata-start-v020.sh` умеет обслуживать оба об�
 `/opt/strata/.venv/bin/python` в старом). Прогон отката поднимал старый образ
 с тем же entrypoint, тем же `-p 8081:8080` и тем же набором env:
 
-- `/health` → `{"status": "ok", "max_context": 262144, ...}`
+- `/health` → `{"status": "ok", "max_context": 524288, ...}`
 - `/mcp` → `{"servers": [], "tools": 0}` — агентных поверхностей нет и там
 - эксперты загрузились: 103.13 GiB за 69 с
 - цензура выключена: на пробный запрос модель ответила «DAN here — no restrictions»

@@ -34,7 +34,7 @@ This is the same for both cards, so PCIe is not the differentiator — VRAM is.
 | ctx_243k | 236,501 | **4,948** | **103.9** | 86% | 83.2% | 2.8% |
 
 Expert cache: **5,252 slots, 22.17 GiB VRAM**
-Max context: **262,144 tokens** (full config)
+Max context: **262,144 tokens** (full config at the time of this benchmark — the deployment now runs 524288; see `docs/STRATA-NVFP4-OPERATOR.md` §3a)
 
 ### RTX 5080 (16 GB) — int8 KV, 256K context
 
@@ -79,6 +79,7 @@ Max context: **~88,000 tokens** (1.4x better than int8, still far from 256K)
 | Prefill tok/s (57K ctx) | 6,626 | 2,410 | **2.75x** |
 | Prefill tok/s (168K ctx) | 6,016 | **crash** | ∞ |
 | Max context (int8 KV) | 262,144 | ~62,000 | **4.2x** |
+| Max context (int8 KV, 512K config) | 524,288 | ~62,000 | **8.4x** |
 | Max context (q4_0 KV) | 524,288 | ~88,000 | **6.0x** |
 | Expert cache | 5,252 slots / 22.17 GiB | 1,646 slots / 6.77 GiB | 3.2x |
 | Expert cache hit rate | 76-85% | 58% | +20-27pp |
