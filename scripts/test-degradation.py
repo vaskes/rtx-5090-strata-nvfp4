@@ -20,7 +20,7 @@ import time
 import urllib.request
 
 
-URL = "http://127.0.0.1:8080/v1/chat/completions"
+URL = "http://127.0.0.1:8081/v1/chat/completions"
 API_KEY = "STRATA_API_KEY"
 MODEL = "qwen3.8-flash-next-mix-nvfp4"
 

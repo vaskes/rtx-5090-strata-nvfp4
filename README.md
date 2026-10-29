@@ -1,18 +1,20 @@
 # rtx-5090-strata-nvfp4
 
 Production deployment of [sergqwer/strata-nvfp4](https://github.com/sergqwer/strata-nvfp4)
-(the Strata NVFP4 fork by sergqwer) on an NVIDIA RTX 5090 (Blackwell, sm_120)
+(the Strata NVFP4 fork) on an NVIDIA RTX 5090 (Blackwell, sm_120).
 
 **Deployed fork revision: `586dc5e` (release `0.2.0-beta-nvfp4.3`, engine `0.1.45.3`).**
-The engine is built from the fork's own source tree - this repo holds the recipe
-(`Dockerfile.zen5-v020`), the entrypoints and the docs, not a copy of the fork.
+
+This repository is the **recipe**, not a copy of the fork: the Dockerfile, the
+entrypoints, the deploy script, the systemd unit and the documentation. The fork's
+own source tree is fetched at a pinned commit by `scripts/deploy-v020.sh` — it is
+never vendored here, so the two can never drift apart.
 
 Runs on a host with 128 GB system RAM. Serves **Qwen3.8-Flash-Next** in NVFP4 +
-Q8_0 mix quantization, 256K context by default with optional 512K via YaRN extension.
+Q8_0 mix quantization, 256K context by default with optional 512K via YaRN.
 
-This is a deployment-tested configuration: every patch and config flag in this
-repo is required to make Strata build and run on a 5090. The reasoning is
-documented inline.
+This is a deployment-tested configuration: every patch and config flag here is
+required to make Strata build and run on a 5090. The reasoning is documented inline.
 
 ## Hardware requirements
 
@@ -33,9 +35,9 @@ host first, each with a `.done` file holding its `sha256`, and the setup verifie
 every one of them against the fork's own pins before it starts.
 
 ```bash
-# 1. Clone this repo (the recipe)
-git clone --depth 1 https://github.com/vaskes/rtx-5090-strata-nvfp4.git
-cd rtx-5090-strata-nvfp4
+# 1. Clone this repo (the recipe) and its pinned llama.cpp
+git clone --recurse-submodules https://github.com/vaskes/rtx-5090-strata-nvfp4.git \
+    /opt/rtx-5090-strata-nvfp4-fresh
 
 # 2. Stage the model files and check them against the fork's pins
 #    /opt/strata-data/models/Maximilian228--Qwen3.8-Flash-Next-NVFP4-Q8-Mix-Strata/
@@ -44,21 +46,31 @@ cd rtx-5090-strata-nvfp4
 #      qwen-nvfp4-mix-dense.gguf, ple-fp8.gguf, token-embd-bf16.gguf
 #    /opt/strata-data/models/mmproj-Qwen3.8-Flash-Next-BF16.gguf   (the image encoder)
 
-# 3. Deploy: builds the image, installs the systemd unit, starts the service
+# 3. Deploy: fetches the fork, builds the image, installs the systemd unit, starts
 sudo scripts/deploy-v020.sh
 ```
 
 That is the whole sequence. What it does, and what each step needs, is in
 [`docs/STRATA-NVFP4-OPERATOR.md`](docs/STRATA-NVFP4-OPERATOR.md).
 
+### Ports
+
+| Port | What |
+|---|---|
+| **8081** | Strata NVFP4 (this service), published from the container's internal 8080 |
+| 8080 | Free — reserved for the `llama-qwen5090-256k.service` unit |
+| 8443 | The telegram bot's webhook |
+
 ### Running it by hand (without the script)
 
 ```bash
 # 1. Clone
-git clone --depth 1 https://github.com/vaskes/rtx-5090-strata-nvfp4.git
+git clone --recurse-submodules https://github.com/vaskes/rtx-5090-strata-nvfp4.git
 cd rtx-5090-strata-nvfp4
 
 # 2. Build the image from the FORK's tree (sm_120, ~5 min, ~13 GB output)
+#    The context is assembled from the pinned fork + the pinned llama.cpp:
+sudo scripts/prepare-build-context.sh /opt/strata-nvfp4/build-0.2.0
 cd /opt/strata-nvfp4/build-0.2.0
 docker build -f Dockerfile.zen5-v020 -t strata-nvfp4:sm120-v020 .
 
@@ -69,7 +81,7 @@ sudo chown $USER:$USER /opt/strata-data
 # 4. Run with the default 256K production config
 docker run -d --name strata-nvfp4 \
   --gpus '"'"'"device=1"'"'"' \
-  -p 8080:8080 \
+  -p 8081:8080 \
   --ulimit memlock=-1 \
   -v /opt/strata-data:/data \
   -v $(pwd)/entrypoints/strata-start-v020.sh:/custom-entrypoint.sh:ro \
@@ -90,21 +102,16 @@ docker logs -f strata-nvfp4
 | Path | What | Why |
 |---|---|---|
 | `Dockerfile.zen5-v020` | **The production build** of the fork's tree (`586dc5e`) | Zen 5 native, sm_120, venv in `/venv`, the pip stamp pre-written |
-| `scripts/deploy-v020.sh` | One command: checks the host, builds, installs the unit, starts | Every parameter in one place, for review |
+| `scripts/deploy-v020.sh` | One command: checks the host, fetches the fork, builds, installs the unit, starts | Every parameter in one place, for review |
+| `scripts/prepare-build-context.sh` | Assembles the build context from the pinned fork + the pinned llama.cpp | Makes a rebuild reproduce the context byte-for-byte |
 | `entrypoints/run.sh` | The `docker run` of the service, every flag explicit | What the operator reads before going live |
-| `entrypoints/strata-start-v020.sh` | In-container: setup phase, then serve phase | **Production default** (256K, int8 KV, vision, uncensored) |
+| `entrypoints/strata-start-v020.sh` | In-container: setup phase, then serve phase | **Production default** (256K, int8 KV, vision, uncensored). Serves both images — see the rollback |
 | `systemd/strata-nvfp4.service` | The unit, **disabled by default** | Started by hand, never at boot |
-| `docs/STRATA-NVFP4-OPERATOR.md` | For the operator: paths, parameters, checks, rollback | |
+| `docs/STRATA-NVFP4-OPERATOR.md` | For the operator: paths, parameters, checks, rollback, rebuild | |
 | `docs/STRATA-NVFP4-MAVIS-BOT.md` | For an agent: how to point a bot at Strata | The two traps that cost hours |
-| `Dockerfile` | The OLD tree's build (kept for rollback) | `strata-nvfp4:sm120` |
-| `third_party/llama.cpp/` | llama.cpp at commit `3cf0325` | Pinned — pypi/github downloads are unreliable from this host, and untracked commits can break the build |
-| `entrypoints/strata-start.sh` | The OLD tree's entrypoint (kept for rollback) | |
-| `entrypoints/strata-512k-vision.sh` | 512K + vision + q4_0 KV + YaRN | Special case for huge documents |
-| `entrypoints/README.md` | Entrypoint docs | Env var reference, usage examples |
-| `docs/ARCHITECTURE.md` | Engine + model architecture | What runs where, why |
-| `docs/PERFORMANCE.md` | Benchmarks | Decode, prefill, MTP accept at different configs |
-| `docs/GOTCHAS.md` | Every gotcha hit during deployment | Read this before debugging |
-| `docs/KV-CACHE-MATH.md` | Why q4_0 vs int8 at 512K | VRAM math for the 32 GB constraint |
+| `docs/GPU-AB-BENCHMARK.md` | The old fork revision vs this one, measured | Why this build replaced it |
+| `third_party/llama.cpp/` | llama.cpp at commit `3cf0325` | Pinned — the fork's `setup.py` pins the same commit. Downloads are unreliable from this host |
+| `scripts/bench-*.sh`, `scripts/ctx-probe*.sh` | The measurement harnesses | The numbers in the docs come from these |
 
 ## Key deployment properties
 
@@ -139,7 +146,7 @@ docker logs -f strata-nvfp4
 - **256K context fits 32 GB VRAM** with int8 KV and `kv-grow` (dynamic
   allocation, not preallocated).
 - **512K context requires q4_0 KV** (Hadamard-rotated, ~half memory of int8).
-  Int8 would OOM at full 500K.
+  Int8 would OOM at full 500K. The fork then picks YaRN ×2 by itself.
 
 ## GPU mapping gotcha (nvidia-smi vs CUDA order)
 
@@ -163,53 +170,9 @@ For Docker `docker run --gpus`, use the **nvidia-smi order**:
 For PyTorch / vLLM inside the container, use `CUDA_VISIBLE_DEVICES=0` to
 target the 5090.
 
-## How any agent should deploy this
-
-```bash
-# 0. Verify hardware (one-time)
-nvidia-smi                           # driver 610+, both GPUs visible
-nvidia-smi -q | grep "Total Memory"  # 5090 has ~32 GB
-free -h                              # 96+ GB RAM
-nproc                                # 8+ cores
-df -h /opt                           # 200+ GB free
-
-# 1. Docker
-apt-get install -y docker.io nvidia-container-toolkit
-# Edit /etc/docker/daemon.json: {"data-root": "/opt/docker"}
-systemctl restart docker
-# Verify: docker run --rm --gpus all nvidia/cuda:13.0.0-base-ubuntu24.04 nvidia-smi
-
-# 2. Clone this repo and build
-git clone --depth 1 https://github.com/vaskes/rtx-5090-strata-nvfp4.git
-cd rtx-5090-strata-nvfp4
-docker build -t strata-nvfp4:sm120 .      # 15-20 min
-
-# 3. Run
-sudo mkdir -p /opt/strata-data
-docker run -d --name strata-nvfp4 \
-  --gpus '"'"'"device=1"'"'"' -p 8080:8080 --ulimit memlock=-1 \
-  -v /opt/strata-data:/data \
-  -v $(pwd)/entrypoints/strata-start.sh:/custom-entrypoint.sh:ro \
-  -e HF_TOKEN=$HF_TOKEN -e API_KEY=STRATA_API_KEY \
-  --entrypoint /custom-entrypoint.sh --restart unless-stopped \
-  strata-nvfp4:sm120
-
-# 4. Watch startup (model download + engine warmup)
-docker logs -f strata-nvfp4
-
-# 5. Test
-curl -s http://localhost:8080/health
-# → {"status":"ok","max_context":262144,...}
-
-# 6. Chat
-curl -X POST http://localhost:8080/v1/chat/completions \
-  -H "Authorization: Bearer STRATA_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '"'"'{"model":"qwen3.8-flash-next-mix-nvfp4","messages":[{"role":"user","content":"hi"}],"max_tokens":50}'"'"'
-```
-
 ## License
 
-Inherits from upstream sergqwer/strata-nvfp4 (Qwen3.8-Flash-Next NVFP4
-checkpoint) and Meta's llama.cpp (MIT). Model weights under Qwen Community
+This repository's recipe is MIT (see `LICENSE`). The fork it builds,
+[sergqwer/strata-nvfp4](https://github.com/sergqwer/strata-nvfp4), is MIT as well
+and carries its own copyright. The model weights are under the Qwen Community
 License 1.0.

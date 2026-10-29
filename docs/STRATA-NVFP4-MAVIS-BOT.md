@@ -8,15 +8,23 @@
 ## 1. Точка подключения
 
 ```
-BASE_URL = http://<llmhost1>:8080     # внутри LAN: http://192.168.10.6:8080
+BASE_URL = http://<llmhost1>:8081     # внутри LAN: http://192.168.10.6:8081
 API_KEY  = <тот же, что в /opt/strata-nvfp4.service.d/env, поле API_KEY>
-MODEL    = qwen3.8-flash-next-nvfp4   # имя из /v1/models, можно взять оттуда
+MODEL    = qwen3.8-flash-next-mix-nvfp4   # имя из /v1/models, можно взять оттуда
 ```
 
 Из песочницы Mavis хост доступен как `llmhost1` (`ssh llmhost1`).
-По SSH-туннелю: `ssh -L 8080:127.0.0.1:8080 llmhost1` → `http://127.0.0.1:8080`.
+По SSH-туннелю: `ssh -L 8081:127.0.0.1:8081 llmhost1` → `http://127.0.0.1:8081`.
 
-**Порт 8080 на llmhost1 уже занят контейнером `strata-nvfp4`** — это он и есть.
+**Порт 8081 на llmhost1 занят контейнером `strata-nvfp4`** — это он и есть.
+Порт **8080** на хосте свободен и зарезервирован под `llama-qwen5090-256k.service`
+(другой движок, не Strata). Внутри контейнера Strata слушает 8080 — но снаружи,
+на хосте, это 8081.
+
+> Если Strata переедет на другой порт — правь `LLAMA_URL` в
+> `/opt/telegrambot/bot/app/.env` и пересоздавай контейнер бота:
+> `cd /opt/telegrambot/bot/app && BOT_IMAGE=telegram-bot:v0.21.0-stable docker compose -f docker-compose.production.yml up -d --no-build telegram-bot`.
+> Забытый контейнер без LLM выглядит как «бот молчит», а не как «порт занят».
 
 ---
 
@@ -24,15 +32,15 @@ MODEL    = qwen3.8-flash-next-nvfp4   # имя из /v1/models, можно вз�
 
 ```sh
 # жив ли сервис
-curl -s http://localhost:8080/health | python3 -m json.tool
+curl -s http://localhost:8081/health | python3 -m json.tool
 
 # какая модель и какой контекст
-curl -s -H "Authorization: Bearer $API_KEY" http://localhost:8080/v1/models
+curl -s -H "Authorization: Bearer $API_KEY" http://localhost:8081/v1/models
 
 # быстрый смоук
-curl -s -H "Authorization: Bearer $API_KEY" http://localhost:8080/v1/chat/completions \
+curl -s -H "Authorization: Bearer $API_KEY" http://localhost:8081/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"model":"qwen3.8-flash-next-nvfp4","messages":[{"role":"user","content":"Привет"}],"max_tokens":64}'
+  -d '{"model":"qwen3.8-flash-next-mix-nvfp4","messages":[{"role":"user","content":"Привет"}],"max_tokens":64}'
 ```
 
 Если `/health` отвечает, а `/v1/models` нет — скорее всего не тот API-ключ.
@@ -45,7 +53,7 @@ Strata отдаёт OpenAI-совместимый формат:
 
 ```json
 {
-  "model": "qwen3.8-flash-next-nvfp4",
+  "model": "qwen3.8-flash-next-mix-nvfp4",
   "messages": [
     {"role": "system", "content": "..."},
     {"role": "user",   "content": "..."}
@@ -81,6 +89,11 @@ Strata отдаёт OpenAI-совместимый формат:
 {"messages": [...], "max_tokens": 2000, "reasoning_budget": 512}
 ```
 
+Замер на этой сборке: запрос с `max_tokens=3000` вернул `finish_reason=length`
+и пустой `content`, при этом текст ответа на 12 700 символов лежал в
+`reasoning_content`. С `max_tokens=7000` тот же запрос отработал нормально.
+**Держи запас минимум ×2-3 к бюджету размышления.**
+
 **Ловушка 2: реальная стена — это контекст, а не `max_tokens`.**
 
 `prompt + thinking + answer ≤ 262144`. Длинная история чата съедает окно;
@@ -99,7 +112,7 @@ Strata обрежет запрос, а не ответит ошибкой. Сч�
 не надо. Проверка, что выключено:
 
 ```sh
-curl -s -H "Authorization: Bearer $API_KEY" http://localhost:8080/mcp
+curl -s -H "Authorization: Bearer $API_KEY" http://localhost:8081/mcp
 # {"servers": [], "tools": 0}
 ```
 
@@ -122,12 +135,12 @@ docker exec strata-nvfp4 sh -c 'ps aux | grep -c "[s]trata_mcp"'
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="http://192.168.10.6:8080/v1",
+    base_url="http://192.168.10.6:8081/v1",
     api_key="<API_KEY из env-файла>",
 )
 
 resp = client.chat.completions.create(
-    model="qwen3.8-flash-next-nvfp4",
+    model="qwen3.8-flash-next-mix-nvfp4",
     messages=[{"role": "user", "content": "Привет"}],
     max_tokens=1024,
 )
@@ -142,20 +155,21 @@ print(resp.choices[0].message.content)
 
 ### 512K контекст (спецрежим, не норма)
 
-Отдельный сервис с другими флагами:
+Тот же контейнер и тот же entrypoint, но с другими env:
 
 ```
---max-context 524288 --kv q4_0 --rope-scaling yarn --rope-scale 2
+CONTEXT=524288  KV=q4_0
 ```
 
 Форк сам выбирает метод RoPE: при `int8` KV он берёт **dynamic** (обученные углы
 сохраняются до 262K), а при `q4_0` — **yarn** с коэффициентом 2 (dynamic с
-4-битным KV движок отвергает).
+4-битным KV движок отвергает). Проверено сухим прогоном setup.py на этой сборке:
+`--rope-scaling yarn --rope-scale 2`, `--max-context 524288`, `--kv q4_0`.
 
-Проверено на этой сборке: needle-тест («PURPLEEAGLE42» в 10 270 токенах) найден,
-`max_context: 524288`, VRAM 31.5/32 ГБ. Но это **другой контейнер на той же карте** —
-одновременно с 256K-инстансом 5090 не поднять (VRAM кончится): 512K-инстанс
-поднимается вместо 256K.
+Полный прогон 512K на этой сборке: needle-тест («PURPLEEAGLE42» в 10 270 токенах)
+найден, `max_context: 524288`, VRAM 31.5/32 ГБ. Но это **другой контейнер на той
+же карте** — одновременно с 256K-инстансом 5090 не поднять (VRAM кончится):
+512K-инстанс поднимается вместо 256K.
 
 ### Vision (картинки)
 
@@ -177,8 +191,9 @@ print(resp.choices[0].message.content)
 |---|---|---|
 | `Connection refused` | контейнер не поднят | `systemctl status strata-nvfp4` на llmhost1 |
 | 401/403 | неверный API-ключ | взять из `/opt/strata-nvfp4.service.d/env` |
-| `content` пустой, `finish_reason=length` | `max_tokens` ≤ бюджета размышления | увеличить `max_tokens` |
+| `content` пустой, `finish_reason=length` | `max_tokens` ≤ бюджета размышления | увеличить `max_tokens` (запас ×2-3) |
 | ответ обрезан на середине | контекст исчерпан | сократить историю или уменьшить `reasoning_budget` |
+| бот молчит, а Strata жива | бот остался на старом порту | `LLAMA_URL` в `.env` бота + пересоздать контейнер |
 | очень медленно | запрос попал на RTX 5080 | проверить `--gpus '"device=1"'` в `run.sh` |
 | `the K/V cannot grow to this prompt: no VRAM is left` | контекст выше того, что влезает в VRAM | для 256K нужен int8 KV и 5090; на 5080 потолок ~62K |
 

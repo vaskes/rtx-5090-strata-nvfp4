@@ -13,9 +13,31 @@
 #      instead of the plain "start what is installed" path.
 #
 # Every parameter is explicit below so an operator can review the whole setup in one place.
+#
+# This entrypoint serves BOTH images:
+#   - strata-nvfp4:sm120-v020  (the fork at 586dc5e, the production one)  -> /venv
+#   - strata-nvfp4:sm120       (the previous revision, kept for rollback)  -> /opt/strata/.venv
+# The interpreter is resolved below, so the documented rollback is a one-line image-tag
+# swap in run.sh and nothing else.
 
 set -e
 cd /opt/strata || exit 1
+
+# --- the interpreter ----------------------------------------------------------
+# The 0.2.0 image keeps its venv OUTSIDE the source tree (/venv, like the fork's own
+# Dockerfile: a .venv inside /opt/strata breaks the fork's own test suite, which walks
+# sys.modules and asserts that every module loaded from the source root belongs to
+# serve/strata_cli/strata_control). The previous-revision image keeps its venv inside
+# (/opt/strata/.venv). Resolve, don't hardcode: a hardcoded /venv/bin/python makes the
+# documented rollback fail with "no such file or directory" instead of starting.
+if [ -x /venv/bin/python ]; then
+    PY="/venv/bin/python"                          # the 0.2.0 image
+elif [ -x /opt/strata/.venv/bin/python ]; then
+    PY="/opt/strata/.venv/bin/python"              # the previous-revision image (rollback)
+else
+    echo "ERROR: no python interpreter found (looked for /venv/bin/python and /opt/strata/.venv/bin/python)" >&2
+    exit 1
+fi
 
 # --- the CPU the image was built for (the engine is native: no AVX2 baseline)
 cpuinfo="${STRATA_CPUINFO:-/proc/cpuinfo}"
@@ -37,7 +59,7 @@ LOW_RAM="${LOW_RAM:-off}"                     # all 103 GiB of experts live in R
 # decode collapses). The fork's own warning asks for 768 in exactly this case.
 VRAM_RESERVE_MIB="${VRAM_RESERVE_MIB:-768}"
 HOST="${HOST:-0.0.0.0}"                       # reachable from other machines
-PORT="${PORT:-8080}"                          # the API port
+PORT="${PORT:-8080}"                          # the API port (inside the container)
 API_KEY="${API_KEY:-}"                        # the key clients must send
 
 if [ -z "$API_KEY" ]; then
@@ -54,7 +76,8 @@ SETUP_ARGS="$SETUP_ARGS --data-dir $STRATA_DATA"
 SETUP_ARGS="$SETUP_ARGS --host $HOST --api-key $API_KEY --port $PORT --yes"
 
 echo "=== Strata NVFP4: setup (files verified against the repo's pins, config written) ==="
-/venv/bin/python setup.py --setup --no-start $SETUP_ARGS < /dev/null
+echo "    interpreter: $PY"
+"$PY" setup.py --setup --no-start $SETUP_ARGS < /dev/null
 
 # The server replaces this process (os.execve), so it is PID 1 in the container and
 # `docker stop`'s SIGTERM reaches it directly - it can then answer the engine with QUIT
@@ -63,4 +86,4 @@ echo "=== Strata NVFP4: setup (files verified against the repo's pins, config wr
 # calls setup.main() (see Dockerfile.zen5-v020).
 echo "=== Strata NVFP4: serving on port $PORT ==="
 export STRATA_EXECV=1
-exec /venv/bin/python setup.py --port "$PORT" --yes < /dev/null
+exec "$PY" setup.py --port "$PORT" --yes < /dev/null

@@ -3,7 +3,7 @@
 # Usage: ctx-probe.sh <bytes> [<bytes> ...]
 set -u
 KEY="STRATA_API_KEY"
-URL="http://127.0.0.1:8080/v1/chat/completions"
+URL="http://127.0.0.1:8081/v1/chat/completions"
 
 for n in "$@"; do
     F="/tmp/ctx-probe-${n}.json"

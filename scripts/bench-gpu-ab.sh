@@ -3,12 +3,12 @@
 # Uses pre-generated request files (/tmp/ab-req-*.json from bench-prepare.py).
 #
 # Usage: bench-gpu-ab.sh <label>
-#   reads the server on 127.0.0.1:8080, writes /tmp/ab-raw-<label>.jsonl
+#   reads the server on 127.0.0.1:8081, writes /tmp/ab-raw-<label>.jsonl
 
 set -u
 
 LABEL="${1:-unknown}"
-URL="http://127.0.0.1:8080/v1/chat/completions"
+URL="http://127.0.0.1:8081/v1/chat/completions"
 KEY="STRATA_API_KEY"
 CONTAINER="strata-nvfp4"
 RAW="/tmp/ab-raw-${LABEL}.jsonl"

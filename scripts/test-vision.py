@@ -30,7 +30,7 @@ def make_test_image() -> bytes:
 
 def main():
     api_key = sys.argv[1] if len(sys.argv) > 1 else "STRATA_API_KEY"
-    url = sys.argv[2] if len(sys.argv) > 2 else "http://127.0.0.1:8080/v1/chat/completions"
+    url = sys.argv[2] if len(sys.argv) > 2 else "http://127.0.0.1:8081/v1/chat/completions"
 
     img_bytes = make_test_image()
     b64 = base64.b64encode(img_bytes).decode("ascii")

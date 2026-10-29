@@ -3,14 +3,15 @@
 #
 # What it does, in order:
 #   1. checks the host (RAM, the card, the model files)
-#   2. builds the image (the engine is compiled here, for this CPU and this card)
-#   3. installs the systemd unit (disabled by default) and its environment file
-#   4. starts the service
+#   2. fetches the fork's source at the pinned commit (if it is not there yet)
+#   3. builds the image (the engine is compiled here, for this CPU and this card)
+#   4. installs the systemd unit (disabled by default) and its environment file
+#   5. starts the service
 #
 # The model files are NOT downloaded: they must already be in $DATA_DIR/models
 # (the setup checks every file against the repo's SHA-256 pins).
 #
-# Usage:  deploy.sh [--skip-build] [--no-start]
+# Usage:  deploy-v020.sh [--skip-build] [--no-start]
 
 set -e
 
@@ -23,12 +24,11 @@ MODEL_REPO="Maximilian228/Qwen3.8-Flash-Next-NVFP4-Q8-Mix-Strata"
 MODEL_DIR_NAME="Maximilian228--Qwen3.8-Flash-Next-NVFP4-Q8-Mix-Strata"
 
 # --- llama.cpp (pinned by the fork) -----------------------------------------
-LLAMA_COMMIT="3cf03257f219afbe7334045ff7c6a06ac68c627d"
+LLAMA_COMMIT="3cf03257f219afbe7334045ff7c6a06ac68c627d"   # the pinned submodule of this repo
 
 # --- where things live on the host ------------------------------------------
-SRC_DIR="/opt/strata-nvfp4/src-0.2.0"        # the fork's checkout
+SRC_DIR="/opt/strata-nvfp4/src-0.2.0"        # the fork's checkout (586dc5e)
 BUILD_DIR="/opt/strata-nvfp4/build-0.2.0"    # the build context (source + vendored llama.cpp)
-LLAMA_SRC="/opt/strata-nvfp4/src/third_party/llama.cpp"
 DATA_DIR="/opt/strata-data"                 # the model files
 REPO_DIR="/opt/rtx-5090-strata-nvfp4-fresh"  # this repository (Dockerfile, entrypoints, docs)
 IMAGE="strata-nvfp4:sm120-v020"
@@ -37,7 +37,7 @@ UNIT="/etc/systemd/system/strata-nvfp4.service"
 
 # --- the service's parameters (every one of them, for review) ---------------
 GPU_DEVICE="1"                 # nvidia-smi index of the RTX 5090 (index 0 is the 5080, for ComfyUI)
-HOST_PORT="8080"
+HOST_PORT="8081"               # published on the host. 8080 belongs to the llama-server unit.
 FAMILY="qwen-nvfp4-mix"
 CONTEXT="262144"
 KV="int8"
@@ -82,11 +82,39 @@ if [ ! -d "$DATA_DIR/models/$MODEL_DIR_NAME" ]; then
 fi
 say "model files are in place (the setup verifies every one against the repo's pins)"
 
-# --- 2. the image ------------------------------------------------------------
+# --- 2. the fork's source ----------------------------------------------------
+# The fork is NOT vendored in this repository: it is fetched here, at a pinned
+# commit, so the source and the documentation can never drift apart.
+if [ ! -d "$SRC_DIR/.git" ]; then
+    say "fetching the fork at $FORK_COMMIT"
+    command -v git >/dev/null || { echo "git is not installed" >&2; exit 1; }
+    mkdir -p "$(dirname "$SRC_DIR")"
+    git clone "$FORK_REPO" "$SRC_DIR"
+fi
+cd "$SRC_DIR"
+git fetch --quiet origin "$FORK_COMMIT" || true
+git checkout --quiet "$FORK_COMMIT"
+say "fork source: $(git rev-parse --short HEAD) (release 0.2.0-beta-nvfp4.3)"
+
+# llama.cpp: the fork pins the same commit in its setup.py, but the fork's own
+# tree does not carry it - it is fetched at install time. This repository has it
+# as a submodule, so the build never depends on a download.
+if [ ! -f "$REPO_DIR/third_party/llama.cpp/CMakeLists.txt" ]; then
+    say "initialising the pinned llama.cpp submodule"
+    cd "$REPO_DIR"
+    git submodule update --init --recursive third_party/llama.cpp
+    cd "$SRC_DIR"
+fi
+say "llama.cpp: $(cd "$REPO_DIR/third_party/llama.cpp" && git rev-parse --short HEAD)"
+
+# --- 3. the image ------------------------------------------------------------
 if [ "$SKIP_BUILD" -eq 0 ]; then
     say "building the image"
     # The CUDA+LTO compile needs the RAM the running service holds: stop it first.
     docker stop -t 60 strata-nvfp4 2>/dev/null || true
+    # Rebuild the build context from the pinned sources, so the image is built from
+    # exactly the tree that is documented (and byte-for-byte the same one).
+    "$REPO_DIR/scripts/prepare-build-context.sh" "$BUILD_DIR"
     cd "$BUILD_DIR"
     docker build --progress=plain -f Dockerfile.zen5-v020 -t "$IMAGE" .
     cd - >/dev/null
@@ -94,7 +122,7 @@ fi
 docker image inspect "$IMAGE" >/dev/null 2>&1 || { echo "ERROR: no image $IMAGE" >&2; exit 1; }
 say "image: $(docker images "$IMAGE" --format '{{.ID}} {{.Size}}')"
 
-# --- 3. the service ----------------------------------------------------------
+# --- 4. the service ----------------------------------------------------------
 say "installing the service"
 mkdir -p "$SERVICE_DIR" /var/log/strata-nvfp4
 cp "$REPO_DIR/entrypoints/run.sh" "$SERVICE_DIR/run.sh"
@@ -115,7 +143,7 @@ if [ -f "$UNIT" ]; then
     say "unit installed and left disabled (start it by hand: systemctl start strata-nvfp4)"
 fi
 
-# --- 4. go -------------------------------------------------------------------
+# --- 5. go -------------------------------------------------------------------
 if [ "$START" -eq 1 ]; then
     say "starting"
     "$SERVICE_DIR/run.sh" start

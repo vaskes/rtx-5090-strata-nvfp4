@@ -22,7 +22,7 @@ ENV_FILE="/opt/strata-nvfp4.service.d/env"
 GPU_DEVICE="1"
 
 # --- the port ----------------------------------------------------------------
-HOST_PORT=8080
+HOST_PORT=8081
 
 # --- the model ---------------------------------------------------------------
 # FAMILY=qwen-nvfp4-mix  the NVFP4 + Q8_0 mix (the fork's own family)
@@ -32,12 +32,12 @@ HOST_PORT=8080
 # UNCENSORED=on          this fork's refusal-direction projection
 # LOW_RAM=off            all 103 GiB of experts live in RAM
 FAMILY="qwen-nvfp4-mix"
-MODEL="NVFP4"
 CONTEXT="262144"
 KV="int8"
 VISION="yes"
 UNCENSORED="on"
 LOW_RAM="off"
+VRAM_RESERVE_MIB="768"    # free VRAM for other programs (the engine's LOW threshold is 512 MiB)
 HOST="0.0.0.0"
 PORT="8080"
 
@@ -102,12 +102,12 @@ cmd_start() {
         -v "${ENTRYPOINT_SRC}:/custom-entrypoint.sh:ro" \
         -v "${LOG_DIR}:/var/log/strata-nvfp4" \
         -e FAMILY="${FAMILY}" \
-        -e MODEL="${MODEL}" \
         -e CONTEXT="${CONTEXT}" \
         -e KV="${KV}" \
         -e VISION="${VISION}" \
         -e UNCENSORED="${UNCENSORED}" \
         -e LOW_RAM="${LOW_RAM}" \
+        -e VRAM_RESERVE_MIB="${VRAM_RESERVE_MIB}" \
         -e HOST="${HOST}" \
         -e PORT="${PORT}" \
         -e "API_KEY=${API_KEY:-}" \

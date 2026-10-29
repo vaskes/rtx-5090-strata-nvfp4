@@ -11,7 +11,7 @@ The test verifies:
 
 Usage:
     python3 scripts/make-long-test.py /tmp/long_test.json
-    curl -X POST http://localhost:8080/v1/chat/completions \\
+    curl -X POST http://localhost:8081/v1/chat/completions \\
         -H "Authorization: Bearer STRATA_API_KEY" \\
         -H "Content-Type: application/json" \\
         --data @/tmp/long_test.json
@@ -63,7 +63,7 @@ def main():
     size_mb = len(json.dumps(payload, ensure_ascii=False)) / (1024 * 1024)
     print(f"wrote {out} ({size_mb:.1f} MB, ~140K tokens)")
     print("POST with:")
-    print(f'  curl -X POST http://localhost:8080/v1/chat/completions \\')
+    print(f'  curl -X POST http://localhost:8081/v1/chat/completions \\')
     print(f'      -H "Authorization: Bearer STRATA_API_KEY" \\')
     print(f'      -H "Content-Type: application/json" \\')
     print(f'      --data @{out}')
