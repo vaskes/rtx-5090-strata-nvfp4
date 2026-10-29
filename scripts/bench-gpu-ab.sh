@@ -9,7 +9,11 @@ set -u
 
 LABEL="${1:-unknown}"
 URL="http://127.0.0.1:8081/v1/chat/completions"
-KEY="STRATA_API_KEY"
+# The API key is NEVER stored in this repository. It lives in the service's
+# root-only env file on the host: /opt/strata-nvfp4.service.d/env (API_KEY=...).
+# Export it before running this script:
+#   export STRATA_API_KEY="$(grep -m1 ^API_KEY= /opt/strata-nvfp4.service.d/env | cut -d= -f2-)"
+KEY="${STRATA_API_KEY:?STRATA_API_KEY is not set - see the comment above}"
 CONTAINER="strata-nvfp4"
 RAW="/tmp/ab-raw-${LABEL}.jsonl"
 

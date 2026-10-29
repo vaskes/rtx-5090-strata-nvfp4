@@ -86,7 +86,7 @@ docker run -d --name strata-nvfp4 \
   -v /opt/strata-data:/data \
   -v $(pwd)/entrypoints/strata-start-v020.sh:/custom-entrypoint.sh:ro \
   -e HF_TOKEN=hf_xxx_xxx \                  # only for a first-run download
-  -e API_KEY=STRATA_API_KEY \           # bearer token for the API
+  -e API_KEY="$STRATA_API_KEY" \             # bearer token for the API (see below)
   --entrypoint /custom-entrypoint.sh \
   --restart unless-stopped \
   strata-nvfp4:sm120-v020
@@ -96,6 +96,60 @@ docker logs -f strata-nvfp4
 # The model is already on disk: the setup verifies its hashes and starts.
 # The engine loads 103 GiB of experts into RAM: ~90 s to ready.
 ```
+
+## The API key (and the web UI)
+
+The server refuses to answer `/v1/*` without a bearer token, and the fork
+**requires** a key on any non-loopback bind:
+
+```
+[strata] a non-loopback bind requires an inference API key
+```
+
+There is no flag to bypass it. The key is passed to the engine by the entrypoint
+(`--api-key`) and ends up in the run config `strata-qwen-mix-nvfp4.json`.
+
+**The key is not in this repository.** It lives only in the service's root-only
+env file on the host:
+
+```sh
+# /opt/strata-nvfp4.service.d/env  (chmod 600, root-only)
+API_KEY=strata-...
+```
+
+Generate your own and write it there — never commit it:
+
+```sh
+openssl rand -base64 32 | tr -d '/+=' | head -c 40
+```
+
+To use it from a script in this repo:
+
+```sh
+export STRATA_API_KEY="$(grep -m1 ^API_KEY= /opt/strata-nvfp4.service.d/env | cut -d= -f2-)"
+```
+
+### Which endpoints need it
+
+| Endpoint | Without a key | With a key |
+|---|---|---|
+| `GET /health` | 200 | 200 |
+| `GET /v1/models` | **401** | 200 |
+| `POST /v1/chat/completions` | **401** | 200 |
+| `GET /mcp`, `/metrics`, `/config` | **401** | 200 |
+
+`?api_key=` in the query string is **not** accepted — only the
+`Authorization: Bearer <key>` header (or `x-api-key`).
+
+### The web UI
+
+`http://<host>:8081/` serves the Strata UI. It asks for the key once:
+**About → Settings → API key**, and keeps it in the browser's localStorage
+under `strata.apikey`. The key stays in the browser — the UI cannot read it from
+the server. Paste the value from the env file above.
+
+The port is LAN-only (it is not published to the internet), so the key never
+leaves the network.
 
 ## What's in this repo
 

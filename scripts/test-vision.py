@@ -7,6 +7,7 @@ the model's response. Use this to verify a fresh deployment is working.
 Usage:
     python3 scripts/test-vision.py
 """
+import os
 import base64
 import json
 import sys
@@ -29,7 +30,13 @@ def make_test_image() -> bytes:
 
 
 def main():
-    api_key = sys.argv[1] if len(sys.argv) > 1 else "STRATA_API_KEY"
+        # Never hardcoded: pass the key as argv[1] or export STRATA_API_KEY.
+    api_key = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("STRATA_API_KEY", "")
+    if not api_key:
+        raise SystemExit(
+            "No API key: pass it as argv[1] or export STRATA_API_KEY "
+            "(read it from /opt/strata-nvfp4.service.d/env on the host)."
+        )
     url = sys.argv[2] if len(sys.argv) > 2 else "http://127.0.0.1:8081/v1/chat/completions"
 
     img_bytes = make_test_image()

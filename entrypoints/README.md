@@ -39,7 +39,7 @@ docker run -d --name strata-nvfp4 \
   -e UNCENSORED=on \                          # engine-level censorship off
   -e VRAM_RESERVE_MIB=768 \                   # free VRAM for other programs
   -e HF_TOKEN=hf_xxx \                        # for first-run model download
-  -e API_KEY=STRATA_API_KEY \
+  -e API_KEY="$STRATA_API_KEY" \
   --entrypoint /custom-entrypoint.sh \
   --restart unless-stopped \
   strata-nvfp4:sm120-v020

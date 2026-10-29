@@ -13,6 +13,7 @@ Usage:
     # or with custom sizes:
     python3 scripts/test-degradation.py --sizes 1000 50000 100000 220000
 """
+import os
 import argparse
 import json
 import sys
@@ -21,7 +22,14 @@ import urllib.request
 
 
 URL = "http://127.0.0.1:8081/v1/chat/completions"
-API_KEY = "STRATA_API_KEY"
+# Never hardcoded: the key lives in the host's root-only env file
+# (/opt/strata-nvfp4.service.d/env). Export STRATA_API_KEY before running.
+API_KEY = os.environ.get("STRATA_API_KEY", "")
+if not API_KEY:
+    raise SystemExit(
+        "STRATA_API_KEY is not set. Read it from the host: "
+        "export STRATA_API_KEY=\"$(grep -m1 ^API_KEY= /opt/strata-nvfp4.service.d/env | cut -d= -f2-)\""
+    )
 MODEL = "qwen3.8-flash-next-mix-nvfp4"
 
 # Russian accent dictionary - 3.26M entries, ~172 MB on disk
