@@ -1,0 +1,2 @@
+{"label": "decode_only", "prompt_tokens": 121, "completion_tokens": 500, "prefill_tps": 150.2, "prefill_ms": 806.0, "decode_tps": 52.5, "decode_ms": 9518.0, "mtp_accept_pct": 83.3, "cached_tokens": 0}
+{"label": "ctx_50k", "prompt_tokens": 57239, "completion_tokens": 126, "prefill_tps": 2410.1, "prefill_ms": 23749.0, "decode_tps": 53.0, "decode_ms": 2376.0, "mtp_accept_pct": 74.8, "cached_tokens": 0}
