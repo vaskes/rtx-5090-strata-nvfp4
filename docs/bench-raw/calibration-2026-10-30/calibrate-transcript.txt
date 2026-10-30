@@ -1,0 +1,60 @@
+Transcription of the container log of the calibration run of 2026-10-30
+(the measurement lines, verbatim; the setup phase before them is elided).
+
+Why a transcription and not the raw file: the first version of
+scripts/calibrate.sh ran `setup.py --calibrate` WITHOUT `--no-start`, so the
+fork started the serving process after the measurements and the container never
+exited; the runner sat in `docker wait` until the container was removed by
+hand, and `docker logs` then failed with "can not get logs from container
+which is dead or marked for removal". The runner now passes `--no-start`, so a
+re-run writes the genuine log. The numbers below are the ones the fork
+printed, in its own words.
+
+=== phase 2: the calibration ===
+  Tuning Strata for this PC: the output speed is measured with a few engine settings (the PCIe share, the
+  draft depth, the CPU threads, the expert cache; on two or more cards also the prompt chunks). It takes
+  roughly 15-30 minutes (3 rounds of each value); the PC is busy meanwhile.
+  Loading the model for the measurements ...
+[strata] starting the engine: reading the model's weights ...
+[strata] loading the experts into RAM (about 6 GB) and locking part of them for the GPU.
+[strata] experts loaded: 103.13 GiB at 1.80 GiB/s (66 s so far)
+[strata] filling the GPU's expert cache (5267 experts, 22.24 GiB of VRAM) ...
+    round 1/3 PCIe share: 0 74.3  0.2 87.5  0.25 94.1  0.35 92.6  0.55 75.4  0.75 55.1  0.9 51.8  1 43.1
+    round 2/3 PCIe share: 0 72.0  0.2 87.3  0.25 94.7  0.35 94.1  0.55 72.3  0.75 58.0  0.9 49.2  1 43.0
+    round 3/3 PCIe share: 0 71.8  0.2 88.0  0.25 90.7  0.35 94.7  0.55 68.8  0.75 58.3  0.9 52.2  1 44.0
+    PCIe share, median of 3: 0: 72.0 (71.8-74.3), 0.2: 87.5 (87.3-88.0), 0.25: 94.1 (90.7-94.7), 0.35: 94.1 (92.6-94.7), 0.55: 72.3 (68.8-75.4), 0.75: 58.0 (55.1-58.3), 0.9: 51.8 (49.2-52.2), 1: 43.1 (43.0-44.0) -> best 0.35
+    round 1/3 draft floor: 0.3 74.2  0.5 84.9  0.7 92.2
+    round 2/3 draft floor: 0.3 75.7  0.5 85.8  0.7 93.2
+    round 3/3 draft floor: 0.3 77.6  0.5 85.4  0.7 93.6
+    draft floor, median of 3: 0.3: 75.7 (74.2-77.6), 0.5: 85.4 (84.9-85.8), 0.7: 93.2 (92.2-93.6) -> best 0.7
+  Measuring with 15 CPU workers (restarts the engine) ...
+[strata] experts loaded: 103.13 GiB at 1.78 GiB/s (68 s so far)
+[strata] filling the GPU's expert cache (5267 experts, 22.24 GiB of VRAM) ...
+    15 workers: 92.5 tok/s
+  Measuring with 10 CPU workers (restarts the engine) ...
+[strata] experts loaded: 103.13 GiB at 1.81 GiB/s (64 s so far)
+    10 workers: 95.3 tok/s
+  Measuring with 8 CPU workers (restarts the engine) ...
+[strata] experts loaded: 103.13 GiB at 1.81 GiB/s (64 s so far)
+    8 workers: 92.9 tok/s
+  Measuring with 4 CPU workers (restarts the engine) ...
+[strata] experts loaded: 103.13 GiB at 1.81 GiB/s (64 s so far)
+    4 workers: 91.6 tok/s
+  Measuring the expert tier (the engine default) (restarts the engine) ...
+    94.1 tok/s
+  Measuring the expert tier every 1, 80 swaps, decay 0.97 (restarts the engine) ...
+    86.9 tok/s
+  Measuring the expert tier every 1, 160 swaps, decay 0.97 (restarts the engine) ...
+    88.8 tok/s
+  [ok] tuned for this PC: --pool-workers 10 (94.1 tok/s)
+
+Reading of the sweep, for the record:
+  - PCIe share: the engine's own value on this box is 0.35 and it is also the best
+    measured (94.1 tok/s, tied with 0.25). The fork's fallback value 0.55 - the one
+    calibrate.py assumes when the engine does not report one - would have cost 23 %.
+  - draft floor: 0.7 (the product default) is the best; 0.5 gives -8 %, 0.3 gives -19 %.
+  - CPU workers: 10 beats the engine's default 15 by 3.0 % (95.3 vs 92.5 tok/s), which
+    is exactly the fork's 3 % threshold, so it was kept. 8 and 4 are worse.
+  - expert tier: the engine default (94.1) beats both adaptive variants (86.9 / 88.8),
+    so nothing was changed there.
+  => the only setting that survived: --pool-workers 10.

@@ -1,0 +1,173 @@
+{
+ "label": "confirm-pool10-run2",
+ "url": "http://127.0.0.1:8081",
+ "rounds": 5,
+ "max_tokens": 256,
+ "decode_tok_s_median": 91.7,
+ "decode_tok_s_min": 82.1,
+ "decode_tok_s_max": 109.5,
+ "draft_acceptance_median": 0.8349,
+ "samples": 15,
+ "raw": [
+  [
+   {
+    "prompt": "Write a Python function that merges two sorted l",
+    "decode_tok_s": 85.4,
+    "prompt_tok_s": 156.9,
+    "predicted_n": 256,
+    "draft_accepted": 179,
+    "draft_n": 209,
+    "wall_s": 3.475,
+    "finish": "length"
+   },
+   {
+    "prompt": "Explain in two paragraphs how a refrigerator mov",
+    "decode_tok_s": 88.7,
+    "prompt_tok_s": 85.7,
+    "predicted_n": 234,
+    "draft_accepted": 122,
+    "draft_n": 217,
+    "wall_s": 3.423,
+    "finish": "stop"
+   },
+   {
+    "prompt": "List twelve European capitals with one sentence ",
+    "decode_tok_s": 108.5,
+    "prompt_tok_s": 97.9,
+    "predicted_n": 256,
+    "draft_accepted": 167,
+    "draft_n": 200,
+    "wall_s": 2.995,
+    "finish": "length"
+   }
+  ],
+  [
+   {
+    "prompt": "Write a Python function that merges two sorted l",
+    "decode_tok_s": 82.1,
+    "prompt_tok_s": 160.2,
+    "predicted_n": 256,
+    "draft_accepted": 177,
+    "draft_n": 212,
+    "wall_s": 3.585,
+    "finish": "length"
+   },
+   {
+    "prompt": "Explain in two paragraphs how a refrigerator mov",
+    "decode_tok_s": 97.0,
+    "prompt_tok_s": 82.6,
+    "predicted_n": 256,
+    "draft_accepted": 141,
+    "draft_n": 219,
+    "wall_s": 3.454,
+    "finish": "length"
+   },
+   {
+    "prompt": "List twelve European capitals with one sentence ",
+    "decode_tok_s": 109.5,
+    "prompt_tok_s": 97.4,
+    "predicted_n": 256,
+    "draft_accepted": 160,
+    "draft_n": 187,
+    "wall_s": 2.978,
+    "finish": "length"
+   }
+  ],
+  [
+   {
+    "prompt": "Write a Python function that merges two sorted l",
+    "decode_tok_s": 86.3,
+    "prompt_tok_s": 157.3,
+    "predicted_n": 256,
+    "draft_accepted": 176,
+    "draft_n": 201,
+    "wall_s": 3.44,
+    "finish": "length"
+   },
+   {
+    "prompt": "Explain in two paragraphs how a refrigerator mov",
+    "decode_tok_s": 98.9,
+    "prompt_tok_s": 86.3,
+    "predicted_n": 256,
+    "draft_accepted": 144,
+    "draft_n": 222,
+    "wall_s": 3.368,
+    "finish": "length"
+   },
+   {
+    "prompt": "List twelve European capitals with one sentence ",
+    "decode_tok_s": 104.1,
+    "prompt_tok_s": 97.5,
+    "predicted_n": 256,
+    "draft_accepted": 159,
+    "draft_n": 206,
+    "wall_s": 3.097,
+    "finish": "length"
+   }
+  ],
+  [
+   {
+    "prompt": "Write a Python function that merges two sorted l",
+    "decode_tok_s": 84.6,
+    "prompt_tok_s": 158.0,
+    "predicted_n": 256,
+    "draft_accepted": 172,
+    "draft_n": 195,
+    "wall_s": 3.497,
+    "finish": "length"
+   },
+   {
+    "prompt": "Explain in two paragraphs how a refrigerator mov",
+    "decode_tok_s": 87.0,
+    "prompt_tok_s": 85.5,
+    "predicted_n": 235,
+    "draft_accepted": 122,
+    "draft_n": 217,
+    "wall_s": 3.488,
+    "finish": "stop"
+   },
+   {
+    "prompt": "List twelve European capitals with one sentence ",
+    "decode_tok_s": 91.7,
+    "prompt_tok_s": 99.2,
+    "predicted_n": 256,
+    "draft_accepted": 142,
+    "draft_n": 177,
+    "wall_s": 3.421,
+    "finish": "length"
+   }
+  ],
+  [
+   {
+    "prompt": "Write a Python function that merges two sorted l",
+    "decode_tok_s": 86.7,
+    "prompt_tok_s": 166.3,
+    "predicted_n": 256,
+    "draft_accepted": 177,
+    "draft_n": 212,
+    "wall_s": 3.403,
+    "finish": "length"
+   },
+   {
+    "prompt": "Explain in two paragraphs how a refrigerator mov",
+    "decode_tok_s": 96.4,
+    "prompt_tok_s": 84.6,
+    "predicted_n": 256,
+    "draft_accepted": 144,
+    "draft_n": 223,
+    "wall_s": 3.451,
+    "finish": "length"
+   },
+   {
+    "prompt": "List twelve European capitals with one sentence ",
+    "decode_tok_s": 104.5,
+    "prompt_tok_s": 94.9,
+    "predicted_n": 256,
+    "draft_accepted": 160,
+    "draft_n": 191,
+    "wall_s": 3.108,
+    "finish": "length"
+   }
+  ]
+ ]
+}

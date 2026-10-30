@@ -11,7 +11,8 @@ own source tree is fetched at a pinned commit by `scripts/deploy-v020.sh` — it
 never vendored here, so the two can never drift apart.
 
 Runs on a host with 128 GB system RAM. Serves **Qwen3.8-Flash-Next** in NVFP4 +
-Q8_0 mix quantization, 256K context by default with optional 512K via YaRN.
+Q8_0 mix quantization, 512K context on int8 KV with dynamic RoPE (the fork's own
+elastic K/V; see `docs/KV-CACHE-MATH.md`).
 
 This is a deployment-tested configuration: every patch and config flag here is
 required to make Strata build and run on a 5090. The reasoning is documented inline.
@@ -78,9 +79,9 @@ docker build -f Dockerfile.zen5-v020 -t strata-nvfp4:sm120-v020 .
 sudo mkdir -p /opt/strata-data
 sudo chown $USER:$USER /opt/strata-data
 
-# 4. Run with the default 256K production config
+# 4. Run with the default 512K production config
 docker run -d --name strata-nvfp4 \
-  --gpus '"'"'"device=1"'"'"' \
+  --gpus '"device=1"' \
   -p 8081:8080 \
   --ulimit memlock=-1 \
   -v /opt/strata-data:/data \
@@ -159,21 +160,28 @@ leaves the network.
 | `scripts/deploy-v020.sh` | One command: checks the host, fetches the fork, builds, installs the unit, starts | Every parameter in one place, for review |
 | `scripts/prepare-build-context.sh` | Assembles the build context from the pinned fork + the pinned llama.cpp | Makes a rebuild reproduce the context byte-for-byte |
 | `entrypoints/run.sh` | The `docker run` of the service, every flag explicit | What the operator reads before going live |
-| `entrypoints/strata-start-v020.sh` | In-container: setup phase, then serve phase | **Production default** (256K, int8 KV, vision, uncensored). Serves both images — see the rollback |
+| `entrypoints/strata-start-v020.sh` | In-container: setup phase, then serve phase | **Production default** (512K, int8 KV, vision, uncensored). Serves both images — see the rollback |
 | `systemd/strata-nvfp4.service` | The unit, **disabled by default** | Started by hand, never at boot |
 | `docs/STRATA-NVFP4-OPERATOR.md` | For the operator: paths, parameters, checks, rollback, rebuild | |
 | `docs/STRATA-NVFP4-MAVIS-BOT.md` | For an agent: how to point a bot at Strata | The two traps that cost hours |
 | `docs/GPU-AB-BENCHMARK.md` | The old fork revision vs this one, measured | Why this build replaced it |
+| `docs/CALIBRATION.md` | The engine calibration of 2026-10-30: what was measured, what changed | The PCIe bottleneck of this host, and why the flags are not the fix |
+| `docs/KV-CACHE-MATH.md` | The KV cache arithmetic, from measured numbers | int8 at 512K: what it costs and why q4_0 is not wanted |
 | `third_party/llama.cpp/` | llama.cpp at commit `3cf0325` | Pinned — the fork's `setup.py` pins the same commit. Downloads are unreliable from this host |
 | `scripts/bench-*.sh`, `scripts/ctx-probe*.sh` | The measurement harnesses | The numbers in the docs come from these |
+| `scripts/calibrate.sh` | Runs the fork's own calibration on this host | What the fork tunes, and how to re-run it |
+| `scripts/decode-bench.py` | The decode-speed probe (A/B instrument) | Every before/after number in the docs comes from it |
+| `scripts/needle-512k.py` | Needle probe past the trained context | Proves the 512K context, not that it started |
 
 ## Key deployment properties
 
-- **Container pinned to RTX 5090 only** via `--gpus '"'"'"device=1"'"'"'`. RTX 5080 in the same host stays free.
+- **Container pinned to RTX 5090 only** via `--gpus '"device=1"'`. RTX 5080 in the same host stays free.
 - **The engine is built for this host, in the image.** Zen 5 with `-O3 -flto
   -march=native -mtune=znver4`; the container never compiles anything and never
-  touches the network at start. Measured on the RTX 5090: **~120-137 tok/s decode**,
-  prefill ~6000 tok/s, MTP draft acceptance 85-95 %.
+  touches the network at start. Measured on the RTX 5090 with the production
+  config: **85-104 tok/s decode** (the repo's own A/B run: `decode_only` = 85.7
+  tok/s, `docs/bench-raw/ab-raw-rtx5090.jsonl`), prefill ~5000-6600 tok/s, MTP
+  draft acceptance 76-86 %.
 - **`STRATA_PORTABLE` is explicitly OFF.** The upstream Dockerfile sets it, and it
   forces `GGML_NATIVE=OFF` (an AVX2 baseline) - that throws away the whole Zen 5
   win (decode 80-85 tok/s instead of 95-101).
@@ -197,10 +205,20 @@ leaves the network.
 - **Vision works** but runs on CPU by default (engine chose CPU path to avoid
   the 1.4 GB VRAM hit). To force GPU vision: set `VISION=gpu` in the
   container env. CPU vision is ~2-6s per image, GPU is <1s.
-- **256K context fits 32 GB VRAM** with int8 KV and `kv-grow` (dynamic
-  allocation, not preallocated).
-- **512K context requires q4_0 KV** (Hadamard-rotated, ~half memory of int8).
-  Int8 would OOM at full 500K. The fork then picks YaRN ×2 by itself.
+- **512K context on int8 KV works, and it is the production default.** The fork's
+  K/V is elastic (`--kv-grow`): only the reached cells take VRAM (13.7 KB/token
+  with int8, so 6.70 GiB at the full 524 288), and the rest is taken from the
+  expert cache. Verified live with a needle placed past the trained range
+  (found at 520 940 tokens; 528 140 tokens are refused, never truncated).
+  See `docs/STRATA-NVFP4-OPERATOR.md` §3a.
+- **The KV quantization is int8, not q4_0, on purpose.** Past the trained 262 144
+  the fork picks the RoPE method by the KV type: int8/fp16 allow *dynamic* (the
+  trained angles stay exact while the dialog fits, yarn only beyond that), while
+  q4_0/k8v4 force yarn everywhere and lose the trained angles on every short
+  dialog. `docs/KV-CACHE-MATH.md` has the numbers.
+- **The engine is calibrated for this box** (`docs/CALIBRATION.md`): the PCIe
+  share, the draft floor, the CPU worker count and the expert tier were
+  measured here; the only setting that changed is `--pool-workers 10`.
 
 ## GPU mapping gotcha (nvidia-smi vs CUDA order)
 
@@ -219,7 +237,7 @@ CUDA_VISIBLE_DEVICES=1  → RTX 5080 (16 GB)
 ```
 
 For Docker `docker run --gpus`, use the **nvidia-smi order**:
-`--gpus '"'"'"device=1"'"'"'` to pin to the 5090.
+`--gpus '"device=1"'` to pin to the 5090.
 
 For PyTorch / vLLM inside the container, use `CUDA_VISIBLE_DEVICES=0` to
 target the 5090.

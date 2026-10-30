@@ -1,0 +1,141 @@
+{
+ "label": "after-calibration-pool10",
+ "url": "http://127.0.0.1:8081",
+ "rounds": 4,
+ "max_tokens": 256,
+ "decode_tok_s_median": 97.15,
+ "decode_tok_s_min": 83.4,
+ "decode_tok_s_max": 109.1,
+ "draft_acceptance_median": 0.8204,
+ "samples": 12,
+ "raw": [
+  [
+   {
+    "prompt": "Write a Python function that merges two sorted l",
+    "decode_tok_s": 83.8,
+    "prompt_tok_s": 162.4,
+    "predicted_n": 256,
+    "draft_accepted": 178,
+    "draft_n": 214,
+    "wall_s": 3.513,
+    "finish": "length"
+   },
+   {
+    "prompt": "Explain in two paragraphs how a refrigerator mov",
+    "decode_tok_s": 85.2,
+    "prompt_tok_s": 84.9,
+    "predicted_n": 232,
+    "draft_accepted": 121,
+    "draft_n": 221,
+    "wall_s": 3.516,
+    "finish": "stop"
+   },
+   {
+    "prompt": "List twelve European capitals with one sentence ",
+    "decode_tok_s": 100.9,
+    "prompt_tok_s": 99.0,
+    "predicted_n": 256,
+    "draft_accepted": 155,
+    "draft_n": 195,
+    "wall_s": 3.166,
+    "finish": "length"
+   }
+  ],
+  [
+   {
+    "prompt": "Write a Python function that merges two sorted l",
+    "decode_tok_s": 83.4,
+    "prompt_tok_s": 162.4,
+    "predicted_n": 256,
+    "draft_accepted": 179,
+    "draft_n": 212,
+    "wall_s": 3.529,
+    "finish": "length"
+   },
+   {
+    "prompt": "Explain in two paragraphs how a refrigerator mov",
+    "decode_tok_s": 97.1,
+    "prompt_tok_s": 87.3,
+    "predicted_n": 256,
+    "draft_accepted": 139,
+    "draft_n": 212,
+    "wall_s": 3.407,
+    "finish": "length"
+   },
+   {
+    "prompt": "List twelve European capitals with one sentence ",
+    "decode_tok_s": 104.5,
+    "prompt_tok_s": 98.3,
+    "predicted_n": 256,
+    "draft_accepted": 161,
+    "draft_n": 199,
+    "wall_s": 3.085,
+    "finish": "length"
+   }
+  ],
+  [
+   {
+    "prompt": "Write a Python function that merges two sorted l",
+    "decode_tok_s": 84.1,
+    "prompt_tok_s": 153.7,
+    "predicted_n": 256,
+    "draft_accepted": 181,
+    "draft_n": 214,
+    "wall_s": 3.528,
+    "finish": "length"
+   },
+   {
+    "prompt": "Explain in two paragraphs how a refrigerator mov",
+    "decode_tok_s": 97.2,
+    "prompt_tok_s": 85.3,
+    "predicted_n": 256,
+    "draft_accepted": 139,
+    "draft_n": 208,
+    "wall_s": 3.423,
+    "finish": "length"
+   },
+   {
+    "prompt": "List twelve European capitals with one sentence ",
+    "decode_tok_s": 109.1,
+    "prompt_tok_s": 97.3,
+    "predicted_n": 256,
+    "draft_accepted": 160,
+    "draft_n": 187,
+    "wall_s": 2.987,
+    "finish": "length"
+   }
+  ],
+  [
+   {
+    "prompt": "Write a Python function that merges two sorted l",
+    "decode_tok_s": 84.1,
+    "prompt_tok_s": 157.1,
+    "predicted_n": 256,
+    "draft_accepted": 176,
+    "draft_n": 211,
+    "wall_s": 3.517,
+    "finish": "length"
+   },
+   {
+    "prompt": "Explain in two paragraphs how a refrigerator mov",
+    "decode_tok_s": 97.6,
+    "prompt_tok_s": 85.2,
+    "predicted_n": 256,
+    "draft_accepted": 141,
+    "draft_n": 211,
+    "wall_s": 3.414,
+    "finish": "length"
+   },
+   {
+    "prompt": "List twelve European capitals with one sentence ",
+    "decode_tok_s": 107.8,
+    "prompt_tok_s": 97.3,
+    "predicted_n": 256,
+    "draft_accepted": 160,
+    "draft_n": 188,
+    "wall_s": 3.015,
+    "finish": "length"
+   }
+  ]
+ ]
+}
