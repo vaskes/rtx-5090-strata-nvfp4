@@ -1,0 +1,108 @@
+{
+ "tag": "p65536",
+ "requested_prompt_tokens": 65536,
+ "requested_output_tokens": 65536,
+ "max_tokens": 73728,
+ "reasoning_budget_tokens": 2048,
+ "instruction_tokens": 156,
+ "template_overhead_tokens": 52,
+ "prompt_build": {
+  "source": "/data/bench/corpus.txt",
+  "source_chars": 4024466,
+  "source_tokens": 1270483,
+  "load_s": 0.19,
+  "encode_s": 0.44,
+  "part_tokens": 65328,
+  "part_chars": 218184,
+  "content_tokens": 65483,
+  "content_chars": 218792,
+  "compose_encode_s": 0.03,
+  "total_s": 0.67
+ },
+ "calls": [
+  {
+   "wall_s": 920.5,
+   "finish_reason": "length",
+   "usage": {
+    "prompt_tokens": 65544,
+    "completion_tokens": 73728,
+    "total_tokens": 139272,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "timings": {
+    "cache_n": 0,
+    "prompt_n": 65544,
+    "prompt_ms": 10260.3,
+    "prompt_per_token_ms": 0.157,
+    "prompt_per_second": 6388.1,
+    "predicted_n": 73728,
+    "predicted_ms": 910138.3,
+    "predicted_per_token_ms": 12.347,
+    "predicted_per_second": 81.0,
+    "draft_n": 66195,
+    "draft_n_accepted": 52008
+   },
+   "content_chars": 245382,
+   "reasoning_chars": 8391,
+   "log": {
+    "prefill_lines": [
+     {
+      "seen": 32768,
+      "total": 65544,
+      "seconds": 5
+     },
+     {
+      "seen": 65536,
+      "total": 65544,
+      "seconds": 9
+     }
+    ],
+    "done_lines": [
+     {
+      "tokens": 73728,
+      "seconds": 920,
+      "tok_s": 81.0,
+      "finish": "length, cancel=False",
+      "expert_cache": ", expert cache 72.5% hit (+6.6% of the routed experts over PCIe)"
+     }
+    ],
+    "thinking_lines": [
+     {
+      "tokens": 1870,
+      "budget": 2048,
+      "max": 73728,
+      "tok_s": 95.3,
+      "seconds": 30
+     },
+     {
+      "tokens": 1963,
+      "budget": 2048,
+      "max": 73728,
+      "tok_s": 95.1,
+      "seconds": 31
+     }
+    ]
+   }
+  }
+ ],
+ "total_completion_tokens": 73728,
+ "samples": {
+  "samples": 453,
+  "seconds": 923.0,
+  "disk_read_MBps": 0.0,
+  "disk_rchar_MBps": 4.38,
+  "gpu_util_mean": 99.3,
+  "gpu_util_max": 100.0,
+  "gpu_mem_mib_max": 31608,
+  "power_w_max": 496.13,
+  "pcie_width": [
+   "8"
+  ],
+  "pcie_gen": [
+   "5"
+  ]
+ },
+ "at": "2026-10-30 19:14:40"
+}

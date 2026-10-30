@@ -1,0 +1,15 @@
+model alias: qwen3.8-flash-next-mix-nvfp4
+corpus: /opt/strata-data/bench/corpus.txt (4061174 bytes)
+template overhead: 52 tokens (probe prompt_tokens=57, content=5)
+[p65536] building the prompt for 65536 tokens ...
+[p65536] request: prompt ~65536 tok, max_tokens=73728 -> http://127.0.0.1:8081
+[p65536] prompt_tokens=65544 completion=73728 prefill=6388.1 tok/s decode=81.0 tok/s total_completion=73728
+[p131072] building the prompt for 131072 tokens ...
+[p131072] request: prompt ~131072 tok, max_tokens=73728 -> http://127.0.0.1:8081
+[p131072] continuation 2: have 61243 of 65536 tokens
+[p131072] prompt_tokens=131100 completion=61243 prefill=6968.3 tok/s decode=78.8 tok/s total_completion=94681
+[p262144] building the prompt for 262144 tokens ...
+[p262144] request: prompt ~262144 tok, max_tokens=73728 -> http://127.0.0.1:8081
+[p262144] continuation 2: have 51188 of 65536 tokens
+[p262144] prompt_tokens=262181 completion=51188 prefill=6646.6 tok/s decode=69.5 tok/s total_completion=76602
+summary: /opt/strata-data/bench/summary.json

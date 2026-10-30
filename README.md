@@ -167,6 +167,9 @@ leaves the network.
 | `docs/GPU-AB-BENCHMARK.md` | The old fork revision vs this one, measured | Why this build replaced it |
 | `docs/CALIBRATION.md` | The engine calibration of 2026-10-30: what was measured, what changed | The PCIe bottleneck of this host, and why the flags are not the fix |
 | `docs/KV-CACHE-MATH.md` | The KV cache arithmetic, from measured numbers | int8 at 512K: what it costs and why q4_0 is not wanted |
+| `docs/LONGCTX-BENCHMARK.md` | The long-context run of 2026-10-30: 64K/128K/256K prompts, ≥64K answers | Prefill is flat, decode pays for the context |
+| `scripts/longctx-bench.py` | The long-context benchmark, against the live prod | The numbers in `docs/LONGCTX-BENCHMARK.md` come from it |
+| `scripts/strata-token-cut.py` | Cuts a prompt to an exact token count with the model's own tokenizer | The prompts are sized, not guessed |
 | `third_party/llama.cpp/` | llama.cpp at commit `3cf0325` | Pinned — the fork's `setup.py` pins the same commit. Downloads are unreliable from this host |
 | `scripts/bench-*.sh`, `scripts/ctx-probe*.sh` | The measurement harnesses | The numbers in the docs come from these |
 | `scripts/calibrate.sh` | Runs the fork's own calibration on this host | What the fork tunes, and how to re-run it |
@@ -219,6 +222,11 @@ leaves the network.
 - **The engine is calibrated for this box** (`docs/CALIBRATION.md`): the PCIe
   share, the draft floor, the CPU worker count and the expert tier were
   measured here; the only setting that changed is `--pool-workers 10`.
+- **Long context was measured on the live prod** (`docs/LONGCTX-BENCHMARK.md`):
+  a 64K / 128K / 256K-token prompt with a ≥64K-token answer. Prefill is flat
+  (6.4-7.0K tok/s across a 4x range); decode falls 81.0 → 78.8 → 69.5 tok/s
+  (-14 % from 64K to 256K) as the MTP acceptance and the expert-cache hit fall
+  and more of the work arrives over the Gen5 x8 link.
 
 ## GPU mapping gotcha (nvidia-smi vs CUDA order)
 

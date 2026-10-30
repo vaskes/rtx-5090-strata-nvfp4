@@ -1,0 +1,176 @@
+{
+ "tag": "p262144",
+ "requested_prompt_tokens": 262144,
+ "requested_output_tokens": 65536,
+ "max_tokens": 73728,
+ "reasoning_budget_tokens": 2048,
+ "instruction_tokens": 156,
+ "template_overhead_tokens": 52,
+ "prompt_build": {
+  "source": "/data/bench/corpus.txt",
+  "source_chars": 4024466,
+  "source_tokens": 1270483,
+  "load_s": 0.19,
+  "encode_s": 0.47,
+  "part_tokens": 261936,
+  "part_chars": 907709,
+  "content_tokens": 262092,
+  "content_chars": 908317,
+  "compose_encode_s": 0.11,
+  "total_s": 0.82
+ },
+ "calls": [
+  {
+   "wall_s": 775.9,
+   "finish_reason": "stop",
+   "usage": {
+    "prompt_tokens": 262181,
+    "completion_tokens": 51188,
+    "total_tokens": 313369,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "timings": {
+    "cache_n": 0,
+    "prompt_n": 262181,
+    "prompt_ms": 39446.1,
+    "prompt_per_token_ms": 0.15,
+    "prompt_per_second": 6646.6,
+    "predicted_n": 51188,
+    "predicted_ms": 736304.4,
+    "predicted_per_token_ms": 14.384,
+    "predicted_per_second": 69.5,
+    "draft_n": 45809,
+    "draft_n_accepted": 32153
+   },
+   "content_chars": 181561,
+   "reasoning_chars": 5136,
+   "log": {
+    "prefill_lines": [
+     {
+      "seen": 196608,
+      "total": 262181,
+      "seconds": 28
+     },
+     {
+      "seen": 229376,
+      "total": 262181,
+      "seconds": 33
+     },
+     {
+      "seen": 262144,
+      "total": 262181,
+      "seconds": 38
+     }
+    ],
+    "done_lines": [
+     {
+      "tokens": 33438,
+      "seconds": 433,
+      "tok_s": 79.0,
+      "finish": "stop, cancel=False",
+      "expert_cache": ", expert cache 72.7% hit (+6.3% of the routed experts over PCIe)"
+     },
+     {
+      "tokens": 51188,
+      "seconds": 776,
+      "tok_s": 69.5,
+      "finish": "stop, cancel=False",
+      "expert_cache": ", expert cache 70.0% hit (+6.8% of the routed experts over PCIe)"
+     }
+    ],
+    "thinking_lines": [
+     {
+      "tokens": 1457,
+      "budget": 2048,
+      "max": 73728,
+      "tok_s": 84.4,
+      "seconds": 57
+     },
+     {
+      "tokens": 1544,
+      "budget": 2048,
+      "max": 73728,
+      "tok_s": 84.3,
+      "seconds": 58
+     }
+    ]
+   }
+  },
+  {
+   "wall_s": 382.7,
+   "finish_reason": "stop",
+   "usage": {
+    "prompt_tokens": 311881,
+    "completion_tokens": 25414,
+    "total_tokens": 337295,
+    "prompt_tokens_details": {
+     "cached_tokens": 262176
+    }
+   },
+   "timings": {
+    "cache_n": 262176,
+    "prompt_n": 49705,
+    "prompt_ms": 10403.4,
+    "prompt_per_token_ms": 0.209,
+    "prompt_per_second": 4777.8,
+    "predicted_n": 25414,
+    "predicted_ms": 372165.3,
+    "predicted_per_token_ms": 14.644,
+    "predicted_per_second": 68.3,
+    "draft_n": 22827,
+    "draft_n_accepted": 16605
+   },
+   "content_chars": 86534,
+   "reasoning_chars": 977,
+   "log": {
+    "prefill_lines": [],
+    "done_lines": [
+     {
+      "tokens": 25414,
+      "seconds": 383,
+      "tok_s": 68.3,
+      "finish": "stop, cancel=False",
+      "expert_cache": ", expert cache 68.4% hit (+7.4% of the routed experts over PCIe)"
+     }
+    ],
+    "thinking_lines": [
+     {
+      "tokens": 163,
+      "budget": 2048,
+      "max": 73728,
+      "tok_s": 68.8,
+      "seconds": 13
+     },
+     {
+      "tokens": 244,
+      "budget": 2048,
+      "max": 73728,
+      "tok_s": 71.9,
+      "seconds": 14
+     }
+    ]
+   },
+   "note": "continuation: the prompt is cached, so its prefill is not a measurement"
+  }
+ ],
+ "total_completion_tokens": 76602,
+ "samples": {
+  "samples": 382,
+  "seconds": 777.2,
+  "disk_read_MBps": 0.0,
+  "disk_rchar_MBps": 13.51,
+  "gpu_util_mean": 99.4,
+  "gpu_util_max": 100.0,
+  "gpu_mem_mib_max": 31608,
+  "power_w_max": 509.54,
+  "pcie_width": [
+   "8"
+  ],
+  "pcie_gen": [
+   "5"
+  ]
+ },
+ "at": "2026-10-30 19:54:38"
+}
