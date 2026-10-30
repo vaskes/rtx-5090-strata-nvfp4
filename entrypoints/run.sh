@@ -14,6 +14,11 @@ ENTRYPOINT_SRC="/opt/rtx-5090-strata-nvfp4-fresh/entrypoints/strata-start-v020.s
 DATA_DIR="/opt/strata-data"              # the model files (158 GB), mounted read-write at /data
 LOG_DIR="/var/log/strata-nvfp4"
 ENV_FILE="/opt/strata-nvfp4.service.d/env"
+# The fork's own record of this box: the data dir, the installs and the calibration
+# ("what was tuned on this PC and model"). It lives in the container writable layer, so
+# it is mounted from the host - the container is recreated on every service restart and
+# would otherwise lose the calibration.
+SETTINGS_FILE="/opt/strata-nvfp4.service.d/strata-settings.json"
 
 # --- the card ----------------------------------------------------------------
 # The host's nvidia-smi lists the RTX 5080 as index 0 (reserved for ComfyUI)
@@ -73,6 +78,14 @@ cmd_start() {
 
     mkdir -p "$LOG_DIR"
 
+    # The mounted settings file must exist as a file before the container starts: docker
+    # would otherwise create a directory at that path and the fork could not save its
+    # settings there.
+    if [ ! -f "$SETTINGS_FILE" ]; then
+        printf '%s\n' '{"data_dir": "/data", "installs": ["/opt/strata"]}' > "$SETTINGS_FILE"
+        chmod 600 "$SETTINGS_FILE"
+    fi
+
     if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
         echo "ERROR: $IMAGE not found" >&2
         echo "Build: docker build -f Dockerfile.zen5-v020 -t $IMAGE /opt/strata-nvfp4/build-0.2.0" >&2
@@ -102,6 +115,7 @@ cmd_start() {
         -v "${DATA_DIR}:/data" \
         -v "${ENTRYPOINT_SRC}:/custom-entrypoint.sh:ro" \
         -v "${LOG_DIR}:/var/log/strata-nvfp4" \
+        -v "${SETTINGS_FILE}:/root/.config/strata/settings.json" \
         -e FAMILY="${FAMILY}" \
         -e CONTEXT="${CONTEXT}" \
         -e KV="${KV}" \
